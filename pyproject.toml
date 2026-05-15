@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dcm-anon"
+version = "0.3.1"
+description = "DICOM anonymizer (PS3.15 Basic Profile) with regulator-clause-cited compliance manifest and independent output verification"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+keywords = [
+    "dicom", "anonymization", "phi", "de-identification", "medical-imaging",
+    "compliance", "eu-ai-act", "hipaa", "gdpr", "pseudonymisation",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+    "pydicom>=2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.8",
+]
+progress = [
+    "tqdm>=4.65",
+]
+ocr = [
+    "pytesseract>=0.3",
+]
+
+[project.scripts]
+dcm-anon = "cli:main"
+
+[tool.setuptools]
+py-modules = [
+    "anonymize",
+    "actions",
+    "audit",
+    "cli",
+    "manifest",
+    "phi_table",
+    "pipeline",
+    "regulatory_mapping",
+    "uid_mapper",
+    "verify_output",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "RUF"]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B904",   # raise-without-from-inside-except — too strict for this codebase
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--tb=short"
+
+[tool.coverage.run]
+source = [
+    "anonymize", "actions", "audit", "cli", "manifest", "phi_table",
+    "pipeline", "regulatory_mapping", "uid_mapper", "verify_output",
+]
+omit = ["test_*", "conftest.py", "examples/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

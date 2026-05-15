@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  test:
+    name: "Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov ruff mypy
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Type check with mypy
+        run: |
+          mypy \
+            anonymize.py actions.py audit.py cli.py manifest.py \
+            phi_table.py pipeline.py regulatory_mapping.py uid_mapper.py \
+            verify_output.py \
+            --strict --ignore-missing-imports
+
+      - name: Run tests with coverage
+        run: |
+          pytest test_anonymize.py test_manifest.py -v \
+            --cov=anonymize --cov=actions --cov=audit --cov=cli \
+            --cov=manifest --cov=phi_table --cov=pipeline \
+            --cov=regulatory_mapping --cov=uid_mapper --cov=verify_output \
+            --cov-report=term-missing \
+            --cov-fail-under=80
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .coverage

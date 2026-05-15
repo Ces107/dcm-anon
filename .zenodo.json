@@ -1,0 +1,42 @@
+{
+  "title": "dcm-anon: DICOM anonymizer with verbatim-cited compliance manifest",
+  "description": "Open-source DICOM anonymizer implementing the PS3.15 Basic Application Level Confidentiality Profile (Table E.1-1, 2024 edition) with a machine-verifiable, verbatim-cited compliance manifest mapping each PS3.15 action to GDPR Art. 4(5) / Art. 32(1)(a) / Art. 35, HIPAA Safe Harbor (45 CFR 164.514(b)(2)), and EU AI Act Art. 10 clauses. Independent post-run PHI residual verification using a separate tag list. Audit log with SHA-256 tamper-evident chain. Research artifact accompanying ongoing work on fairness-aware Software-as-a-Medical-Device (SaMD).",
+  "creators": [
+    {
+      "name": "Pereiro García, César",
+      "affiliation": "Universitat Politècnica de València (alumni)"
+    }
+  ],
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "keywords": [
+    "DICOM",
+    "medical imaging",
+    "de-identification",
+    "anonymization",
+    "GDPR",
+    "HIPAA",
+    "EU AI Act",
+    "data protection",
+    "DPIA",
+    "PHI",
+    "PS3.15",
+    "compliance",
+    "research data sharing",
+    "SaMD",
+    "Software-as-a-Medical-Device"
+  ],
+  "communities": [
+    {"identifier": "medical-imaging"},
+    {"identifier": "open-science"}
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isAlternateIdentifier",
+      "identifier": "https://github.com/Ces107/dcm-anon",
+      "resource_type": "software"
+    }
+  ],
+  "language": "eng"
+}
