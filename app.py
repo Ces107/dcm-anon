@@ -127,7 +127,4 @@ with gr.Blocks(title="dcm-anon demo") as demo:
 
 
 if __name__ == "__main__":
-    # show_api=False sidesteps a gradio_client 4.44 schema-introspection bug
-    # ("argument of type 'bool' is not iterable" on const:bool JSON schema nodes)
-    # that triggers on some pydantic-typed inputs in HF Spaces builds.
-    demo.launch(show_api=False)
+    demo.launch(server_name="0.0.0.0", server_port=7860, show_api=False)
