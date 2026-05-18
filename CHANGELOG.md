@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.3] — 2026-05-18
+
+### Changed (packaging only)
+
+- Re-tag after Zenodo↔GitHub webhook was confirmed installed on the repo
+  (v0.3.1 and v0.3.2 shipped before the webhook propagation). v0.3.3 is the
+  first release expected to mint a DOI on Zenodo.
+
+---
+
 ## [0.3.2] — 2026-05-18
 
 ### Changed (packaging only — no functional changes)
