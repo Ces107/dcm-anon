@@ -11,6 +11,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.2] — 2026-05-18
+
+### Changed (packaging only — no functional changes)
+
+- **Distribution name on PyPI is `dcm-anonymizer`** (the slug `dcm-anon` is
+  refused by PyPI because of similar-name collisions with two legacy projects
+  `dcmanon` and `dicom-anon`). The CLI command, the import path, and the
+  project branding remain `dcm-anon`. Install with `pip install dcm-anonymizer`.
+- **Re-tagged release to trigger Zenodo DOI minting** after the GitHub-Zenodo
+  webhook was activated. v0.3.1 shipped just before webhook activation and
+  therefore has no DOI; v0.3.2 is functionally identical and is the first
+  release with a citable DOI.
+
+---
+
 ## [0.3.1] — 2026-05-13
 
 ### Changed (hardened from 5-agent adversarial red team)
