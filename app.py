@@ -121,7 +121,7 @@ with gr.Blocks(title="dcm-anon demo") as demo:
     gr.Markdown(
         "---\n"
         "[Source on GitHub](https://github.com/Ces107/dcm-anon) · "
-        "[Zenodo DOI](https://doi.org/PLACEHOLDER) · "
+        "[Zenodo DOI](https://doi.org/10.5281/zenodo.20267652) · "
         "[Reserve early access to hosted service](https://dcm-anon.carrd.co)"
     )
 

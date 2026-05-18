@@ -3,7 +3,7 @@
 **OSS DICOM anonymizer with a verbatim-cited, machine-verifiable compliance manifest — for research-data sharing under GDPR Art. 35 DPIA and HIPAA Safe Harbor.**
 
 [![CI](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml/badge.svg)](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml)
-<!-- DOI_BADGE_SLOT -->
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20267652.svg)](https://doi.org/10.5281/zenodo.20267652)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![Manifest format](https://img.shields.io/badge/manifest_format-v1.2-blueviolet)](manifest.py)
@@ -322,7 +322,7 @@ If you use this tool in a publication, please cite via the Zenodo DOI:
   title        = {{dcm-anon: DICOM anonymizer with verbatim-cited compliance manifest}},
   year         = {2026},
   publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.PLACEHOLDER},
+  doi          = {10.5281/zenodo.20267652},
   url          = {https://github.com/Ces107/dcm-anon},
 }
 ```

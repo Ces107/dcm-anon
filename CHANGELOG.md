@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.4] — 2026-05-18
+
+### Added
+
+- Real Zenodo DOI stamped in README badge, citation block, and app.py
+  footer: <https://doi.org/10.5281/zenodo.20267652>. Minted on v0.3.3
+  release after webhook activation.
+
+---
+
 ## [0.3.3] — 2026-05-18
 
 ### Changed (packaging only)
