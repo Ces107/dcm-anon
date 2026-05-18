@@ -57,10 +57,10 @@ def main() -> None:
             continue
         if name in bundled:
             shutil.copy(bundled[name], dst)
-            print(f"  copied bundled pydicom test file → {dst} ({dst.stat().st_size} bytes)")
+            print(f"  copied bundled pydicom test file -> {dst} ({dst.stat().st_size} bytes)")
         else:
             _generate_synthetic(name, dst)
-            print(f"  generated synthetic → {dst} ({dst.stat().st_size} bytes)")
+            print(f"  generated synthetic -> {dst} ({dst.stat().st_size} bytes)")
     print("Done. Run: python examples/run_example.py")
 
 

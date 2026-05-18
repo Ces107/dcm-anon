@@ -50,7 +50,7 @@ LOG = logging.getLogger("dcmanon")
 def build_arg_parser(version: str) -> argparse.ArgumentParser:
     """Build the argparse parser. Public so tests can introspect choices."""
     parser = argparse.ArgumentParser(
-        prog="anonymize",
+        prog="dcm-anon",
         description=(
             "DICOM anonymizer — PS3.15 Basic Application Level Confidentiality "
             "Profile, with optional compliance manifest."
@@ -129,7 +129,9 @@ def _add_manifest_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Additionally run pytesseract OCR on pixel data of sampled files "
-            "(requires the tesseract binary; silently degrades if unavailable)"
+            "(requires the tesseract binary; raises PixelOCRUnavailableError "
+            "if pytesseract or tesseract is missing — use --no-strict-ocr to "
+            "fall back to metadata-only scanning)"
         ),
     )
 

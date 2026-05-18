@@ -221,7 +221,13 @@ def _scan_metadata(
     ds: Dataset,
     file_path: Path,
 ) -> list[Residual]:
-    """Scan a dataset against the independent PHI tag list."""
+    """Scan a dataset against the independent PHI tag list.
+
+    Recurses into Sequence (SQ) items so that PHI surviving inside nested
+    sequences (e.g. ``RequestAttributesSequence``, ``OriginalAttributesSequence``)
+    is detected. Without this, a manifest could report ``passed=True`` while
+    PHI persists in nested datasets.
+    """
     findings: list[Residual] = []
     for group, element, label, hipaa in INDEPENDENT_PHI_TAGS:
         tag = (group, element)
@@ -238,6 +244,13 @@ def _scan_metadata(
             value_excerpt=excerpt,
             layer="metadata",
         ))
+    # Recurse into SQ items (defensive: any DataElement whose VR is "SQ").
+    for elem in ds:
+        if elem.VR != "SQ" or elem.value is None:
+            continue
+        for item in elem.value:
+            if isinstance(item, Dataset):
+                findings.extend(_scan_metadata(item, file_path))
     return findings
 
 

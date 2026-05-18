@@ -38,7 +38,7 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
 <body>
 <div class="wrap">
 
-<span class="kicker">v0.3.2 · MIT · open source</span>
+<span class="kicker">v0.3.5 · MIT · open source · <a href="https://doi.org/10.5281/zenodo.20267652" style="color:inherit;text-decoration:underline">DOI 10.5281/zenodo.20267652</a></span>
 
 <h1>DICOM anonymization with an audit trail your DPO can actually verify.</h1>
 
@@ -53,7 +53,7 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
 <h2>The bit nobody else seems to ship</h2>
 <p>Every PS3.15 action (X / Z / U / D) that runs on your study is mapped to the literal text of the regulation that authorizes it — GDPR Art. 4(5), HIPAA Safe Harbor §164.514(b)(2), EU AI Act Art. 10. Re-verified against EUR-Lex / eCFR / gdpr-info.eu on 2026-05-13. SHA-256 chain over the audit log + manifest so an auditor can verify integrity from the JSON alone.</p>
 
-<h2>What's in v0.3.2</h2>
+<h2>What's in v0.3.5</h2>
 <ul>
   <li>PS3.15 Basic Application Level Confidentiality Profile, full Table E.1-1 (2024 ed.) — 125 explicit tags plus curve / overlay groups via range mask.</li>
   <li>Consistent UID remapping across Study / Series / SOP, with <code>file_meta.MediaStorageSOPInstanceUID</code> kept in sync so DICOMDIR and WADO-RS references survive.</li>
@@ -73,7 +73,7 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
 <h2 id="early-access">Reserve early access (hosted batch)</h2>
 
 <div class="card">
-  <p class="muted small">The OSS CLI is and will stay free. A hosted batch service is in preparation for teams that want S3/GCS sources, private-tag profiles per vendor, DICOM SR content scanning, and retained audit logs. Indicative bands while we measure demand: <strong>€99 / €299 / €499 per month</strong>. No card required at this stage.</p>
+  <p class="muted small">The OSS CLI is and will stay free. A hosted batch service is in preparation for teams that want S3/GCS sources, private-tag profiles per vendor, DICOM SR content scanning, and retained audit logs. Indicative bands while I measure demand: <strong>€99 / €299 / €499 per month</strong>. No card required at this stage.</p>
 
   <p style="margin:14px 0 6px" class="small muted">Drop me a line with a one-paragraph context: what you're trying to anonymize, what regulatory regime you're under, and what the gap is today. I read every one and reply within a week.</p>
   <p style="margin-top:14px"><a class="cta" href="mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access&amp;body=Org%20type%3A%20%0A%20%20(research%20lab%20%2F%20hospital%20%2F%20SaMD%20startup%20%2F%20vendor%20%2F%20consulting%20%2F%20other)%0A%0AVolume%20estimate%20(studies%2Fmo)%3A%20%0A%0AWhat%20problem%20were%20you%20solving%20when%20you%20found%20dcm-anon%3F%0A%0A%0AHow%20did%20you%20hear%20about%20it%3F%0A">Reserve early access →</a></p>

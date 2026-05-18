@@ -52,7 +52,11 @@ from pipeline import (
 from uid_mapper import UIDMapper
 from verify_output import VerificationResult, scan_outputs
 
-__version__: Final[str] = "0.3.1"
+try:
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+    __version__: Final[str] = _pkg_version("dcm-anonymizer")
+except (ImportError, PackageNotFoundError):  # pragma: no cover — source-checkout fallback
+    __version__ = "0.0.0+source"
 
 __all__ = [
     "BURNED_IN_TAG",

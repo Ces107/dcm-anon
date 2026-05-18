@@ -26,7 +26,9 @@ from actions import Action
 
 PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     # ---- Instance / study / series UIDs ------------------------------------
-    (0x0002, 0x0003): Action.U,   # Media Storage SOP Instance UID
+    # NOTE: (0x0002, 0x0003) — Media Storage SOP Instance UID — intentionally
+    # NOT listed here. It lives in file_meta, not the main dataset, and is
+    # handled separately by ``pipeline._maintain_file_meta_consistency``.
     (0x0008, 0x0014): Action.U,   # Instance Creator UID
     (0x0008, 0x0017): Action.U,   # Acquisition UID
     (0x0008, 0x0018): Action.U,   # SOP Instance UID
@@ -78,6 +80,9 @@ PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     (0x0010, 0x2150): Action.X,   # Country of Residence
     (0x0010, 0x2154): Action.X,   # Patient's Telephone Numbers
     (0x0010, 0x2155): Action.X,   # Patient's Telecom Information
+    (0x0010, 0x0034): Action.X,   # Patient's Death Date in Alternative Calendar
+    (0x0010, 0x0035): Action.X,   # Patient's Alternative Calendar
+    (0x0010, 0x1005): Action.X,   # Patient's Birth Name
     (0x0010, 0x2160): Action.X,   # Ethnic Group
     (0x0010, 0x2180): Action.X,   # Occupation
     (0x0010, 0x21B0): Action.X,   # Additional Patient History
@@ -90,6 +95,7 @@ PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     (0x0008, 0x0020): Action.X,   # Study Date
     (0x0008, 0x0021): Action.X,   # Series Date
     (0x0008, 0x0022): Action.X,   # Acquisition Date
+    (0x0008, 0x002A): Action.X,   # Acquisition DateTime
     (0x0008, 0x0023): Action.Z,   # Content Date
     (0x0008, 0x0030): Action.X,   # Study Time
     (0x0008, 0x0031): Action.X,   # Series Time
@@ -102,6 +108,7 @@ PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     (0x0008, 0x0090): Action.Z,   # Referring Physician's Name
     (0x0008, 0x0092): Action.X,   # Referring Physician's Address
     (0x0008, 0x0094): Action.X,   # Referring Physician's Telephone Numbers
+    (0x0008, 0x0096): Action.X,   # Referring Physician Identification Sequence
     (0x0008, 0x009C): Action.Z,   # Consulting Physician's Name
     (0x0008, 0x009D): Action.X,   # Consulting Physician Identification Sequence
     (0x0008, 0x1010): Action.X,   # Station Name
@@ -119,6 +126,8 @@ PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     (0x0008, 0x1072): Action.X,   # Operator Identification Sequence
     (0x0008, 0x1080): Action.X,   # Admitting Diagnoses Description
     (0x0008, 0x1084): Action.X,   # Admitting Diagnoses Code Sequence
+    (0x0008, 0x1111): Action.X,   # Referenced Performed Procedure Step Sequence
+    (0x0008, 0x1115): Action.X,   # Referenced Series Sequence
     (0x0008, 0x4000): Action.X,   # Identifying Comments
     (0x0018, 0x1000): Action.X,   # Device Serial Number
     (0x0018, 0x1004): Action.X,   # Plate ID
@@ -148,7 +157,21 @@ PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     (0x0040, 0x2009): Action.X,   # Order Enterer's Location
     (0x0040, 0x2400): Action.X,   # Imaging Service Request Comments
     (0x0040, 0xA123): Action.X,   # Person Name (SR)
+    (0x0040, 0xA07A): Action.X,   # Participant Sequence
+    # ---- Admission / location / presentation -------------------------------
+    (0x0038, 0x0010): Action.X,   # Admission ID
+    (0x0038, 0x0020): Action.X,   # Admitting Date
+    (0x0038, 0x0021): Action.X,   # Admitting Time
+    (0x0038, 0x0300): Action.X,   # Current Patient Location
+    (0x0070, 0x0084): Action.X,   # Content Creator's Name (Presentation State)
+    (0x0070, 0x0086): Action.X,   # Content Creator Identification Code Sequence
+    # ---- Original-Attributes audit trail (P0 — PACS coercion leak risk) ----
+    (0x0400, 0x0561): Action.X,   # Original Attributes Sequence (PS3.15 mandates X)
     # ---- Retired tags still seen in practice -------------------------------
+    (0x0008, 0x0024): Action.X,   # Overlay Date (RET)
+    (0x0008, 0x0025): Action.X,   # Curve Date (RET)
+    (0x0008, 0x0034): Action.X,   # Overlay Time (RET)
+    (0x0008, 0x0035): Action.X,   # Curve Time (RET)
     (0x0020, 0x0030): Action.X,   # Image Position (RET)
     (0x0020, 0x1070): Action.X,   # Other Study Numbers (RET)
     (0x4008, 0x010C): Action.X,   # Interpretation Author (RET)

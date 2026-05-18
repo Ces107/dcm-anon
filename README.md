@@ -39,7 +39,7 @@ emits all three as first-class artifacts of every run.
 ## What it does
 
 Implements the **DICOM PS3.15 Basic Application Level Confidentiality
-Profile** (Table E.1-1, 2024 edition; **125 explicit tags = mandatory Basic Profile plus retired tags still common in legacy archives; curve groups (50xx,xxxx) and overlay groups (60xx,xxxx) handled by range mask, not enumerated**). Five properties:
+Profile** (Table E.1-1, 2024 edition; **143 explicit tags covering the mandatory Basic Profile plus retired tags still common in legacy archives and the original-attributes audit trail; curve groups (50xx,xxxx) and overlay groups (60xx,xxxx) handled by range mask, not enumerated**). Five properties:
 
 1. **UID consistency across files.** Anonymize a CT study directory and the
    Study/Series/SOP UIDs remain coherent — slices are still a usable study,
@@ -63,8 +63,11 @@ Profile** (Table E.1-1, 2024 edition; **125 explicit tags = mandatory Basic Prof
    regulators actually pursue first: GDPR → Art. 9(2) lawful-basis disclosure
    (controller establishes it independently); HIPAA → Safe-Harbor-only
    declaration (does NOT substitute for Expert Determination); EU AI Act →
-   Digital Omnibus enforcement-date context (deferred to 2027-12-02 /
-   2028-08-02 for SaMD embedded in MDR/IVDR).
+   enforcement-date context. The binding date in force as of release is
+   2026-08-02 (Annex III high-risk obligations under Reg. (EU) 2024/1689);
+   the Digital Omnibus political agreement of 7 May 2026 proposes deferring
+   to 2027-12-02 / 2028-08-02 for SaMD embedded in MDR/IVDR but has not yet
+   been formally adopted or published in the OJEU.
 
 5. **Independent output verification — `--verify-output`.** After the run,
    re-reads the anonymized files using a **separate** PHI tag list (curated
@@ -74,25 +77,25 @@ Profile** (Table E.1-1, 2024 edition; **125 explicit tags = mandatory Basic Prof
 
 ```bash
 # Single file
-python anonymize.py input.dcm out/
+dcm-anon input.dcm out/
 
 # Directory (all *.dcm, preserving subdirectory structure)
-python anonymize.py /data/study_0001 /data/anon/study_0001
+dcm-anon /data/study_0001 /data/anon/study_0001
 
 # Deterministic UIDs — same salt + same source = same output every run
-python anonymize.py /data/study_0001 /data/anon/study_0001 --salt cohort-A-2024
+dcm-anon /data/study_0001 /data/anon/study_0001 --salt cohort-A-2024
 
 # Preview without writing files (audit log still emitted)
-python anonymize.py /data/study_0001 /data/anon/study_0001 --dry-run
+dcm-anon /data/study_0001 /data/anon/study_0001 --dry-run
 
 # Continue past malformed DICOMs; collect them in the audit "errors" list
-python anonymize.py /data/study_0001 /data/anon/study_0001 --continue-on-error
+dcm-anon /data/study_0001 /data/anon/study_0001 --continue-on-error
 
 # Whitelist tags (use sparingly — kept tags break the strict-profile claim)
-python anonymize.py input.dcm out/ --keep 0010,0010 --keep 0008,0090
+dcm-anon input.dcm out/ --keep 0010,0010 --keep 0008,0090
 
 # Markdown summary alongside the JSON audit log
-python anonymize.py /data/study out/ --report-md report.md
+dcm-anon /data/study out/ --report-md report.md
 ```
 
 ---
@@ -107,8 +110,7 @@ pip install dcm-anonymizer
 pip install -e ".[dev]"
 ```
 
-Runtime dependency: `pydicom>=2.4`. Optional: `pytesseract` for burned-in
-text detection (`--scan-burned-in`).
+Runtime dependency: `pydicom>=2.4`. Optional: `pytesseract` (plus the system `tesseract` binary) for pixel-data PHI scanning via `--verify-output-pixel-ocr`. The default is strict — if pytesseract is unavailable the CLI raises `PixelOCRUnavailableError` rather than silently producing a green manifest; pass `--no-strict-ocr` to opt into a metadata-only fallback.
 
 ---
 
@@ -123,17 +125,18 @@ clauses it implements, with verbatim citations and links to canonical text.
 
 ```bash
 # GDPR Art. 4(5) pseudonymisation + Art. 32(1)(a) technical safeguard
-python anonymize.py /data/study out/ --manifest-mode gdpr --verify-output
+dcm-anon /data/study out/ --manifest-mode gdpr --verify-output
 
 # HIPAA Safe Harbor (45 CFR 164.514(b)(2))
-python anonymize.py /data/study out/ --manifest-mode hipaa --verify-output
+dcm-anon /data/study out/ --manifest-mode hipaa --verify-output
 
 # EU AI Act Art. 10 data governance
-# (enforcement deferred to 2027-12-02 / 2028-08-02 by Digital Omnibus 2026-05-07)
-python anonymize.py /data/study out/ --manifest-mode eu-ai-act --verify-output
+# (binding date 2026-08-02; Digital Omnibus deferral to 2027-12-02 / 2028-08-02
+# is a provisional political agreement only, not yet adopted)
+dcm-anon /data/study out/ --manifest-mode eu-ai-act --verify-output
 
 # Verify an existing manifest against its audit (e.g. on the auditor's machine)
-python anonymize.py --verify-manifest compliance_manifest.json \
+dcm-anon --verify-manifest compliance_manifest.json \
                     --audit anonymization_audit.json
 ```
 
@@ -153,8 +156,14 @@ out/
 - **Regulatory regime metadata** + enforcement-date context (live counter
   for AI Act).
 - **Output classification:** explicitly `pseudonymous` (NOT anonymous) under
-  GDPR Art. 4(5), with a risk statement addressing the CNIL / Cegedim Santé
-  enforcement pattern (€800K fine, September 2024).
+  GDPR Art. 4(5), with a risk statement reflecting the CNIL / Cegedim Santé
+  decision SAN-2024-013 (€800K, 5 September 2024). The violation there was
+  Art. 5(1)(a) GDPR + Art. 66 French DPA — unlawful processing of health
+  data because a false anonymisation claim was used as a substitute for a
+  lawful basis under Art. 9. The manifest's pseudonymous label and Art. 9
+  disclosure address the upstream factual gap that drove that enforcement;
+  they are not a substitute for the controller establishing an Art. 9(2)
+  ground.
 - **Per-action clauses.** For each PS3.15 action (X/Z/U/D) used in the run:
   count, citation, short title, verbatim regulatory summary. Examples:
   - Action `U` (UID remap) under HIPAA cites **45 CFR 164.514(c)** —
@@ -167,9 +176,13 @@ out/
   log itself: AI Act Art. 12 + Art. 18, HIPAA 164.312(b), GDPR Art. 30 +
   Art. 5(2).
 - **Authoritative guidance applied.** Post-2024 docs that regulators apply
-  in audits: EDPB Guidelines 01/2025 (pseudonymisation-domain model), MDCG
-  2025-6 (MDR ↔ AI Act interplay for SaMD), NIST SP 800-66r2, GPAI Code of
-  Practice, HHS OCR de-id guidance, ENISA health-sector pseudonymisation.
+  in audits: EDPB Guidelines 01/2025 (pseudonymisation-domain model — draft
+  for public consultation; final version pending), MDCG 2025-6 (MDR ↔ AI Act
+  interplay for SaMD), NIST SP 800-66r2, HHS OCR de-id guidance, ENISA
+  health-sector pseudonymisation. The GPAI Code of Practice is referenced
+  only as context — it applies under AI Act Art. 53(1)(d) to providers of
+  general-purpose AI models, not to narrow-domain SaMD; cite it only if
+  the system also qualifies as a GPAI provider under Art. 3(63).
 - **Independent output verification** (when `--verify-output` is set):
   files scanned, tag list size, residuals found. Counted in the SHA chain.
 - **Two SHA-256 hashes:** `audit_sha256` (over the per-file log) and
@@ -188,9 +201,13 @@ or notified body.
 
 Public-sector data controllers in Spain (including SNS hospitals) are
 subject to the **Esquema Nacional de Seguridad** ([Real Decreto 311/2022](https://www.boe.es/eli/es/rd/2022/05/03/311/con))
-in addition to GDPR. Health data is Category 3, which mandates Nivel ALTO
-(CAT-ALTA). The signed audit log and verbatim-cited manifest produced by
-this tool satisfy the CAT-ALTA technical security measures `op.exp.8`
+in addition to GDPR. ENS system categorisation is impact-based (Annex I,
+Art. 40 of RD 311/2022) — it is not derived automatically from data type.
+Processing health data in an SNS context will typically result in a
+**Nivel ALTO** categorisation, given the potential for serious harm if
+confidentiality, integrity, or availability is compromised. Under that
+classification, the signed audit log and verbatim-cited manifest produced
+by this tool address the CAT-ALTA technical security measures `op.exp.8`
 (registro de actividad), `mp.info.3` (cifrado) and `mp.info.6` (limpieza
 de documentos) in combination with the controller's organisational measures.
 ENS does NOT replace GDPR or any third-country regime (HIPAA, etc.); it is
@@ -200,7 +217,7 @@ the domestic-law backstop AEPD-supervised entities are audited against.
 
 ```bash
 # Independent party, with only the JSON files, can verify integrity:
-python anonymize.py \
+dcm-anon \
   --verify-manifest path/to/compliance_manifest.json \
   --audit path/to/anonymization_audit.json
 # → PASS: manifest ... matches audit ...
@@ -257,11 +274,11 @@ for record in summary.records:
 | Independent output verification | Yes | No | No | No | No |
 | Burned-in PHI detection | Flag + optional OCR | No | Flag only | No | No |
 | Zero runtime dependencies | `pydicom` only | `pydicom` | Java 11+ | Yes | Yes |
-| License | MIT | BSD | Apache 2.0 | Apache 2.0 | Apache 2.0 |
+| License | MIT | BSD | MPL 1.1 | Apache 2.0 | BSD-3-Clause |
 
 ---
 
-## What we do NOT do (explicit limits)
+## Limitations (what this tool does NOT do)
 
 These are documented gaps, not hidden bugs:
 
@@ -270,10 +287,10 @@ These are documented gaps, not hidden bugs:
   the hosted roadmap.
 - **Private tag scrubbing.** The standard says remove private attributes
   (`X`), but identifying which private groups contain PHI requires
-  vendor-specific knowledge. We do not claim to handle private tags. See
-  `SECURITY.md`.
+  vendor-specific knowledge. This tool does not claim to handle private
+  tags. See `SECURITY.md`.
 - **DICOM SR / Structured Report content scanning.** Free-text inside SR
-  sequences may contain PHI; we do not parse SR semantics.
+  sequences may contain PHI; the tool does not parse SR semantics.
 - **DICOMDIR update.** Directory records in a DICOMDIR are not updated
   after UID remapping. Regenerate the DICOMDIR after anonymization.
 - **Big-endian transfer syntaxes.** Rare in practice; not tested.
@@ -307,7 +324,7 @@ python examples/run_example.py
 python examples/run_example.py --salt my-project-2024
 ```
 
-A hosted interactive demo runs at `huggingface.co/spaces/cpereiro/dcm-anon`
+A hosted interactive demo runs at [huggingface.co/spaces/cpereiro/dcm-anon](https://huggingface.co/spaces/cpereiro/dcm-anon)
 (synthetic DICOM only — please do not upload real patient data to the public demo).
 
 ---
@@ -335,7 +352,7 @@ A managed version with batch processing, S3-source support, private-tag
 handling, SR scanning, SLA, and retained audit logs is in preparation for
 single-team research labs.
 
-→ **[Reserve early access (free)](https://dcm-anon.carrd.co)**
+→ **[Reserve early access at the landing page](https://ces107.github.io/dcm-anon/#early-access)** — or email **[plusultra.dev@proton.me](mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access)** directly. Every email gets a personal reply within a week.
 
 ---
 

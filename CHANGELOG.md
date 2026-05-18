@@ -11,6 +11,110 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.5] — 2026-05-18
+
+### Fixed (red-team driven; multiple P0/P1 surfaced by 5-agent adversarial review)
+
+- **`(0400,0561) Original Attributes Sequence` is now removed** (PS3.15
+  mandates X). PACS systems (Merge, Agfa IMPAX, Philips IntelliSpace) populate
+  this SQ with pre-coercion original values of every attribute the PACS
+  modified on ingestion. Prior to v0.3.5 this sequence survived anonymization
+  unchanged, leaking original `PatientName`, `PatientID`, `StudyDate`, etc.
+  verbatim. **P0 PHI-leak fix.**
+- **Independent verifier now recurses into Sequence (SQ) items.**
+  `verify_output._scan_metadata` previously only checked top-level dataset
+  elements. PHI surviving inside nested SQs (e.g.
+  `RequestAttributesSequence`, `OriginalAttributesSequence`) was invisible to
+  the verifier — the manifest could report `passed=True` with PHI present.
+  **P0 silent-false-negative fix.**
+- **Hugging Face Space `Anonymize` button works.** Fixed three chained
+  `TypeError`s in `app.py` (wrong kwargs to `scan_outputs`, `build_manifest`,
+  and `json.dumps` on the `ComplianceManifest` dataclass).
+- **CLI command consistency in README.** Replaced `python anonymize.py …`
+  invocations (which only work in a source checkout) with `dcm-anon …`
+  (which works after `pip install dcm-anonymizer`). Same fix in the HF Space
+  demo header.
+- **`dcm-anon --version` now reads the installed package version dynamically**
+  via `importlib.metadata.version("dcm-anonymizer")`. Prior versions
+  hard-coded `0.3.1` in `anonymize.py`, so `dcm-anon --version` lied to
+  pip-install users.
+- **EU AI Act enforcement wording.** The README and CHANGELOG previously
+  framed the Digital Omnibus deferral (to 2027-12-02 / 2028-08-02) as
+  operative. It is a provisional political agreement (Council + Parliament
+  negotiators, 7 May 2026), not yet adopted or published in the OJEU.
+  2026-08-02 remains the legally binding date for Annex III standalone
+  obligations. Wording in `regulatory_mapping.py` already hedged correctly;
+  README/CHANGELOG/app.py now match.
+- **`argparse` `prog` name is `dcm-anon`** (was `anonymize`). `dcm-anon --help`
+  now prints `usage: dcm-anon [...]`.
+- **README install/help text for pixel OCR** corrected — `--scan-burned-in`
+  flag does not exist; the actual flag is `--verify-output-pixel-ocr`, and
+  the default is strict (raises `PixelOCRUnavailableError` if pytesseract is
+  unavailable; pass `--no-strict-ocr` to fall back to metadata-only).
+- **CNIL / Cegedim Santé case framing** in `regulatory_mapping.py` and README
+  realigned to the verified decision (CNIL SAN-2024-013, 5 September 2024,
+  €800,000): violation was Art. 66 French DPA + Art. 5(1)(a) GDPR (unlawful
+  processing under a false anonymisation claim), not "documentation gap
+  about output classification" per se.
+- **GPAI Code of Practice scope** corrected — applies to providers of
+  general-purpose AI models under AI Act Art. 53(1)(d); does not apply by
+  default to narrow-domain SaMD. Cite only if the system independently
+  qualifies as GPAI under Art. 3(63).
+- **ENS (Real Decreto 311/2022) wording** corrected — categorisation is
+  impact-based (Annex I, Art. 40), not data-type-automatic. "Category 3"
+  was confusing GDPR Art. 9 special-category classification with ENS
+  security categories. Now reads "will typically result in Nivel ALTO
+  under the impact-assessment procedure".
+- **Comparison table licenses** corrected — `dcm4che` is Mozilla Public
+  License 1.1 (was: Apache 2.0); `Kitware/dicom-anonymizer` is BSD-3-Clause
+  (was: Apache 2.0).
+- **Tag count claim** in README updated from "125 tags = mandatory + retired"
+  to "143 tags covering mandatory Basic Profile plus retired tags still
+  common in legacy archives and the original-attributes audit trail".
+
+### Added (PHI_TAGS expansions)
+
+- `(0008,002A) AcquisitionDateTime`
+- `(0008,0096) ReferringPhysicianIdentificationSequence`
+- `(0008,1111) ReferencedPerformedProcedureStepSequence`
+- `(0008,1115) ReferencedSeriesSequence`
+- `(0010,0034) PatientDeathDateInAlternativeCalendar`
+- `(0010,0035) PatientAlternativeCalendar`
+- `(0010,1005) PatientBirthName`
+- `(0038,0010) AdmissionID`
+- `(0038,0020) AdmittingDate`
+- `(0038,0021) AdmittingTime`
+- `(0038,0300) CurrentPatientLocation`
+- `(0040,A07A) ParticipantSequence`
+- `(0070,0084) ContentCreatorName`
+- `(0070,0086) ContentCreatorIdentificationCodeSequence`
+- `(0400,0561) OriginalAttributesSequence` (P0)
+- `(0008,0024) OverlayDate(RET)`, `(0008,0025) CurveDate(RET)`,
+  `(0008,0034) OverlayTime(RET)`, `(0008,0035) CurveTime(RET)`
+- `authors` + `[project.urls]` in `pyproject.toml` so the PyPI page surfaces
+  author identity and homepage/source/DOI/HF links.
+
+### Removed
+
+- Dead entry `(0002,0003) MediaStorageSOPInstanceUID` from `PHI_TAGS` — it
+  lives in `file_meta`, not the main dataset, so the action never fired.
+  `file_meta` UID parity is still maintained correctly by
+  `pipeline._maintain_file_meta_consistency`.
+
+### Changed
+
+- `LICENSE` copyright line now names the author (was blank).
+- `SECURITY.md` adds explicit contact email (`plusultra.dev@proton.me`) and
+  uses singular first-person voice for a solo-author project.
+- README "What we do NOT do" section renamed to "Limitations (what this
+  tool does NOT do)".
+- HF Space link in README is now a clickable Markdown link (was a bare
+  backticked URL).
+- Unicode arrow (U+2192) in `examples/download_test_dicom.py` replaced
+  with ASCII `->` to avoid `UnicodeEncodeError` on Windows cp1252 consoles.
+
+---
+
 ## [0.3.4] — 2026-05-18
 
 ### Added
@@ -50,13 +154,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed (hardened from 5-agent adversarial red team)
 
-- **EU AI Act enforcement date corrected to 2027-12-02** (standalone high-risk
-  AI) / **2028-08-02** (SaMD embedded in MDR/IVDR Class IIb/III), reflecting the
-  Digital Omnibus agreement (Council + Parliament, 7 May 2026). Previous draft
-  cited the now-deferred 2026-08-02 deadline. The manifest now carries an
-  explicit `EU AI Act enforcement context` disclosure section noting the
-  deferral so a reader cannot accuse the tool of pretending to a deadline that
-  no longer exists.
+- **EU AI Act enforcement-date context surfaced.** The manifest now carries
+  an explicit `EU AI Act enforcement context` disclosure noting that
+  2026-08-02 remains the legally binding date under Reg. (EU) 2024/1689 for
+  Annex III standalone obligations, and that the Digital Omnibus political
+  agreement of 7 May 2026 proposes deferral to 2027-12-02 / 2028-08-02 but
+  has not yet been formally adopted or published in the OJEU.
+  *(Note: the v0.3.5 release re-wrote this entry — earlier drafts of this
+  CHANGELOG presented the deferral as already operative, which was
+  factually wrong. The hedged language was correct in
+  `regulatory_mapping.py` from the start.)*
 - **HIPAA manifest now carries a Safe-Harbor-only declaration.** The
   `HIPAA method declaration` regime disclosure states explicitly that
   §164.514(b)(2) is implemented and §164.514(b)(1) Expert Determination requires

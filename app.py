@@ -36,7 +36,7 @@ Local install for real workflows:
 
 ```bash
 pip install dcm-anonymizer
-python anonymize.py /path/to/study out/ --manifest-mode gdpr --verify-output
+dcm-anon /path/to/study out/ --manifest-mode gdpr --verify-output
 ```
 """
 
@@ -69,15 +69,15 @@ def run_demo(file_obj, manifest_mode: str, salt: str) -> tuple[str, str, str]:
     config = AnonymizationConfig(salt=salt.strip() or None)
     summary = anonymize_path(str(in_dir), str(out_dir), config=config)
 
-    verify = scan_outputs(out_dir, strict=False)
+    verify = scan_outputs(out_dir, pixel_ocr=False)
     manifest = build_manifest(
-        summary=summary,
-        regime=manifest_mode,
-        output_dir=out_dir,
-        verify_result=verify,
+        summary,
+        manifest_mode,
+        output_verification=verify,
     )
+    manifest_dict = manifest.as_dict()
     manifest_path = out_dir / "compliance_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
+    manifest_path.write_text(json.dumps(manifest_dict, indent=2))
 
     zip_path = workdir / "dcm-anon-demo-output.zip"
     with zipfile.ZipFile(zip_path, "w") as zf:
@@ -93,7 +93,7 @@ def run_demo(file_obj, manifest_mode: str, salt: str) -> tuple[str, str, str]:
         f"Independent verification residuals: {verify.residuals_found}"
     )
 
-    return summary_text, json.dumps(manifest, indent=2), str(zip_path)
+    return summary_text, json.dumps(manifest_dict, indent=2), str(zip_path)
 
 
 with gr.Blocks(title="dcm-anon demo") as demo:
@@ -122,7 +122,7 @@ with gr.Blocks(title="dcm-anon demo") as demo:
         "---\n"
         "[Source on GitHub](https://github.com/Ces107/dcm-anon) · "
         "[Zenodo DOI](https://doi.org/10.5281/zenodo.20267652) · "
-        "[Reserve early access to hosted service](https://dcm-anon.carrd.co)"
+        "[Reserve early access](https://ces107.github.io/dcm-anon/#early-access)"
     )
 
 

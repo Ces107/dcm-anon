@@ -443,14 +443,17 @@ AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
         GuidanceReference(
             regime=EU_AI_ACT.code,
             publisher="European Commission — AI Office",
-            title="General-Purpose AI Code of Practice (Final)",
+            title="General-Purpose AI Code of Practice (Final) — context only",
             published="2025-07-10",
             url="https://digital-strategy.ec.europa.eu/en/policies/contents-code-gpai",
             relevance=(
-                "Includes a Training Data Disclosure Template mandatory "
-                "for in-scope GPAI providers. The manifest's per-action-"
-                "code accounting feeds the template's data-curation "
-                "disclosure fields."
+                "Context only — applies to providers of general-purpose AI "
+                "models under AI Act Art. 53(1)(d). Narrow-domain SaMD (e.g. "
+                "a dermatology classifier trained on DICOM) is high-risk "
+                "Annex III, NOT a GPAI provider, so the GPAI Training Data "
+                "Disclosure Template does not apply by default. Cite the "
+                "Code only if your system independently qualifies as a GPAI "
+                "model under AI Act Art. 3(63)."
             ),
         ),
     ],
@@ -553,11 +556,18 @@ AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
 # Post-Cegedim defensive — re-identification risk framing
 # ---------------------------------------------------------------------------
 
-# CNIL fined Cegedim Santé €800,000 in September 2024 for documenting
-# pseudonymised output as anonymous, with no separation-of-mapping-table
-# evidence and no re-identification risk statement. The manifest produces
-# the four pieces of evidence CNIL found missing. This text is embedded
-# in every manifest as a defensive disclosure.
+# CNIL decision SAN-2024-013 (Cegedim Santé, €800,000, 5 September 2024)
+# sanctioned Cegedim for (1) processing health data without the CNIL
+# authorisation required by Art. 66 of the French Data Protection Act,
+# and (2) unlawful processing under GDPR Art. 5(1)(a), because Cegedim
+# relied on a claimed anonymisation to bypass the need for an Art. 9
+# lawful basis when the data were only pseudonymous. The fine did not
+# punish a documentation gap about output classification per se; it
+# punished the downstream consequence — absence of a lawful basis — that
+# the false anonymisation claim enabled. The PSEUDONYMOUS_RISK_STATEMENT
+# below addresses the upstream factual gap (correct classification of the
+# output); the GDPR_ART9_DISCLOSURE further down addresses the downstream
+# legal gap (lawful-basis obligation that remains with the controller).
 
 PSEUDONYMOUS_RISK_STATEMENT: Final = (
     "Output classification: PSEUDONYMOUS (not anonymous) under GDPR "
@@ -603,12 +613,14 @@ EXPERT_DETERMINATION_DISCLAIMER: Final = (
 # GDPR enforcement against health data processors uniformly begins with
 # "what is your Art. 9(2) lawful basis for processing special-category
 # personal data?" — not with "is your pseudonymisation technique
-# adequate?" The CNIL/Cegedim Santé case (€800K, Sept 2024) hinged on
-# this question. Our manifest cites Art. 4(5) + Art. 32(1)(a) which
-# defend technique adequacy but are silent on the threshold question.
-# Surfacing the Art. 9 question explicitly — and disclosing that the
-# tool does NOT establish the lawful basis (the controller must) —
-# closes the gap a DPA auditor would otherwise exploit first.
+# adequate?" The CNIL/Cegedim Santé decision SAN-2024-013 turned on
+# exactly this question: the false anonymisation claim removed Cegedim's
+# only argument for processing without an Art. 9 ground. The manifest
+# cites Art. 4(5) + Art. 32(1)(a), which defend technique adequacy but
+# are silent on the threshold lawful-basis question. Surfacing the Art. 9
+# question explicitly — and disclosing that the tool does NOT establish
+# the lawful basis (the controller must) — closes the gap a DPA auditor
+# would otherwise exploit first.
 GDPR_ART9_DISCLOSURE: Final = (
     "GDPR Art. 9 lawful basis: NOT ESTABLISHED BY THIS TOOL. Article 9(1) "
     "prohibits processing of special categories of personal data (incl. "
