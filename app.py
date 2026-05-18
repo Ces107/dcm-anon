@@ -116,7 +116,12 @@ with gr.Blocks(title="dcm-anon demo") as demo:
             manifest_out = gr.Code(label="Compliance manifest (JSON)", language="json", lines=20)
             zip_out = gr.File(label="Download output zip")
 
-    btn.click(run_demo, [file_in, regime, salt], [summary_out, manifest_out, zip_out])
+    btn.click(
+        run_demo,
+        [file_in, regime, salt],
+        [summary_out, manifest_out, zip_out],
+        api_name="anonymize",
+    )
 
     gr.Markdown(
         "---\n"
@@ -126,7 +131,7 @@ with gr.Blocks(title="dcm-anon demo") as demo:
     )
 
 
-demo.queue(api_open=False)
+demo.queue()
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", show_api=False)
