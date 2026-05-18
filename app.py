@@ -5,7 +5,7 @@ identifiable patient metadata patterns. Outputs a downloadable zip with
 the anonymized file, audit log, and compliance manifest.
 
 NOT a hosted production service. For real research workflows, install
-locally: `pip install dcm-anon`.
+locally: `pip install dcm-anonymizer` (CLI command stays `dcm-anon`).
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ public infrastructure with no data-protection agreement.
 Local install for real workflows:
 
 ```bash
-pip install dcm-anon
+pip install dcm-anonymizer
 python anonymize.py /path/to/study out/ --manifest-mode gdpr --verify-output
 ```
 """

@@ -172,7 +172,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`--version`**: prints `dcm-anon 0.2.0` and exits.
 - **Audit log signing**: every audit summary now includes `audit_sha256`, the
   SHA-256 of the canonical-JSON encoding of the records list. Tamper-evident.
-- **Optional progress bar**: when `tqdm` is installed (`pip install dcm-anon[progress]`)
+- **Optional progress bar**: when `tqdm` is installed (`pip install dcm-anonymizer[progress]`)
   and stdout is a TTY, batch runs show a per-file progress bar. Falls back to a
   stderr counter when `tqdm` is unavailable.
 

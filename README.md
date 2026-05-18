@@ -100,8 +100,10 @@ python anonymize.py /data/study out/ --report-md report.md
 ## Install
 
 ```bash
-pip install dcm-anon
-# or, from source:
+pip install dcm-anonymizer
+# CLI command stays `dcm-anon`. Distribution name on PyPI is `dcm-anonymizer`
+# because `dcm-anon` collides with a similar-named legacy project.
+# Or, from source:
 pip install -e ".[dev]"
 ```
 
