@@ -1,9 +1,10 @@
 # dcm-anon
 
-**OSS DICOM anonymizer with a verbatim-cited, machine-verifiable compliance manifest — for research-data sharing under GDPR Art. 35 DPIA and HIPAA Safe Harbor.**
+**OSS DICOM anonymizer with a verbatim-cited, machine-verifiable compliance manifest, for research-data sharing under GDPR Art. 35 DPIA and HIPAA Safe Harbor.**
 
 [![CI](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml/badge.svg)](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20267652.svg)](https://doi.org/10.5281/zenodo.20267652)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20267652-3C5280?logo=zenodo&logoColor=white)](https://doi.org/10.5281/zenodo.20267652)
+[![PyPI](https://img.shields.io/pypi/v/dcm-anonymizer.svg?logo=pypi&logoColor=white)](https://pypi.org/project/dcm-anonymizer/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![Manifest format](https://img.shields.io/badge/manifest_format-v1.2-blueviolet)](manifest.py)
@@ -13,8 +14,8 @@
 ## Why this exists
 
 GDPR Art. 35 makes a DPIA mandatory for **large-scale processing of health
-data**, and best practice — endorsed by the EDPS, the EDPB pseudonymisation
-guidelines (01/2025), and HHS OCR — is to **de-identify at the source site**
+data**, and best practice, endorsed by the EDPS, the EDPB pseudonymisation
+guidelines (01/2025), and HHS OCR, is to **de-identify at the source site**
 before moving research data off-prem. Doing that defensibly means:
 
 1. A traceable mapping from each tag you removed to the **specific clause**
@@ -28,7 +29,7 @@ Most DICOM anonymizers do step 1 implicitly and skip steps 2 and 3. `dcm-anon`
 emits all three as first-class artifacts of every run.
 
 > **Context.** This tool is open-sourced as a research artifact accompanying
-> ongoing work on fairness-aware Software-as-a-Medical-Device (SaMD) — see
+> ongoing work on fairness-aware Software-as-a-Medical-Device (SaMD), see
 > the author's TFG on inter-hospital fairness in dermatology AI
 > ([UPV RiuNet](https://riunet.upv.es/handle/10251/226903)). The compliance-
 > manifest layer was built because cross-hospital data preparation kept
@@ -42,7 +43,7 @@ Implements the **DICOM PS3.15 Basic Application Level Confidentiality
 Profile** (Table E.1-1, 2024 edition; **143 explicit tags covering the mandatory Basic Profile plus retired tags still common in legacy archives and the original-attributes audit trail; curve groups (50xx,xxxx) and overlay groups (60xx,xxxx) handled by range mask, not enumerated**). Five properties:
 
 1. **UID consistency across files.** Anonymize a CT study directory and the
-   Study/Series/SOP UIDs remain coherent — slices are still a usable study,
+   Study/Series/SOP UIDs remain coherent, slices are still a usable study,
    not 200 orphan files. `file_meta.MediaStorageSOPInstanceUID` is remapped
    to match the dataset-level `SOPInstanceUID`, so DICOMDIR and WADO-RS
    references stay intact.
@@ -53,9 +54,9 @@ Profile** (Table E.1-1, 2024 edition; **143 explicit tags covering the mandatory
 
 3. **Nested PHI in Sequence items is scrubbed.** Tags inside
    `RequestAttributesSequence`, `ReferencedStudySequence`, and any other SQ
-   element are recursed into and cleaned — not silently skipped.
+   element are recursed into and cleaned, not silently skipped.
 
-4. **Compliance manifest — `--manifest-mode [gdpr|hipaa|eu-ai-act]`.** Emits
+4. **Compliance manifest, `--manifest-mode [gdpr|hipaa|eu-ai-act]`.** Emits
    a tamper-evident JSON + Markdown artifact that maps each PS3.15 action to
    the specific regulatory clauses it implements (verbatim citations
    re-verified against EUR-Lex / eCFR / gdpr-info.eu on 2026-05-13). Each
@@ -69,7 +70,7 @@ Profile** (Table E.1-1, 2024 edition; **143 explicit tags covering the mandatory
    to 2027-12-02 / 2028-08-02 for SaMD embedded in MDR/IVDR but has not yet
    been formally adopted or published in the OJEU.
 
-5. **Independent output verification — `--verify-output`.** After the run,
+5. **Independent output verification, `--verify-output`.** After the run,
    re-reads the anonymized files using a **separate** PHI tag list (curated
    from HIPAA Safe Harbor §164.514(b)(2) + TCIA checklist, NOT derived from
    the internal table). Result embedded in the manifest, covered by the SHA
@@ -82,7 +83,7 @@ dcm-anon input.dcm out/
 # Directory (all *.dcm, preserving subdirectory structure)
 dcm-anon /data/study_0001 /data/anon/study_0001
 
-# Deterministic UIDs — same salt + same source = same output every run
+# Deterministic UIDs, same salt + same source = same output every run
 dcm-anon /data/study_0001 /data/anon/study_0001 --salt cohort-A-2024
 
 # Preview without writing files (audit log still emitted)
@@ -91,7 +92,7 @@ dcm-anon /data/study_0001 /data/anon/study_0001 --dry-run
 # Continue past malformed DICOMs; collect them in the audit "errors" list
 dcm-anon /data/study_0001 /data/anon/study_0001 --continue-on-error
 
-# Whitelist tags (use sparingly — kept tags break the strict-profile claim)
+# Whitelist tags (use sparingly, kept tags break the strict-profile claim)
 dcm-anon input.dcm out/ --keep 0010,0010 --keep 0008,0090
 
 # Markdown summary alongside the JSON audit log
@@ -110,7 +111,7 @@ pip install dcm-anonymizer
 pip install -e ".[dev]"
 ```
 
-Runtime dependency: `pydicom>=2.4`. Optional: `pytesseract` (plus the system `tesseract` binary) for pixel-data PHI scanning via `--verify-output-pixel-ocr`. The default is strict — if pytesseract is unavailable the CLI raises `PixelOCRUnavailableError` rather than silently producing a green manifest; pass `--no-strict-ocr` to opt into a metadata-only fallback.
+Runtime dependency: `pydicom>=2.4`. Optional: `pytesseract` (plus the system `tesseract` binary) for pixel-data PHI scanning via `--verify-output-pixel-ocr`. The default is strict, if pytesseract is unavailable the CLI raises `PixelOCRUnavailableError` rather than silently producing a green manifest; pass `--no-strict-ocr` to opt into a metadata-only fallback.
 
 ---
 
@@ -158,7 +159,7 @@ out/
 - **Output classification:** explicitly `pseudonymous` (NOT anonymous) under
   GDPR Art. 4(5), with a risk statement reflecting the CNIL / Cegedim Santé
   decision SAN-2024-013 (€800K, 5 September 2024). The violation there was
-  Art. 5(1)(a) GDPR + Art. 66 French DPA — unlawful processing of health
+  Art. 5(1)(a) GDPR + Art. 66 French DPA, unlawful processing of health
   data because a false anonymisation claim was used as a substitute for a
   lawful basis under Art. 9. The manifest's pseudonymous label and Art. 9
   disclosure address the upstream factual gap that drove that enforcement;
@@ -166,21 +167,21 @@ out/
   ground.
 - **Per-action clauses.** For each PS3.15 action (X/Z/U/D) used in the run:
   count, citation, short title, verbatim regulatory summary. Examples:
-  - Action `U` (UID remap) under HIPAA cites **45 CFR 164.514(c)** —
+  - Action `U` (UID remap) under HIPAA cites **45 CFR 164.514(c)** -
     "re-identification code".
   - Action `Z` (zero) under GDPR cites **Art. 32(1)(a) + Art. 4(5)**.
   - Action `X` (remove) under EU AI Act cites **Art. 10(2)(b) + 10(2)(c)
-    + 10(3)** — *not* Art. 10(5), which is the narrow bias-detection
+    + 10(3)**, *not* Art. 10(5), which is the narrow bias-detection
     exception.
 - **Audit-trail clauses.** Clauses that justify the existence of the signed
   log itself: AI Act Art. 12 + Art. 18, HIPAA 164.312(b), GDPR Art. 30 +
   Art. 5(2).
 - **Authoritative guidance applied.** Post-2024 docs that regulators apply
-  in audits: EDPB Guidelines 01/2025 (pseudonymisation-domain model — draft
+  in audits: EDPB Guidelines 01/2025 (pseudonymisation-domain model, draft
   for public consultation; final version pending), MDCG 2025-6 (MDR ↔ AI Act
   interplay for SaMD), NIST SP 800-66r2, HHS OCR de-id guidance, ENISA
   health-sector pseudonymisation. The GPAI Code of Practice is referenced
-  only as context — it applies under AI Act Art. 53(1)(d) to providers of
+  only as context, it applies under AI Act Art. 53(1)(d) to providers of
   general-purpose AI models, not to narrow-domain SaMD; cite it only if
   the system also qualifies as a GPAI provider under Art. 3(63).
 - **Independent output verification** (when `--verify-output` is set):
@@ -202,7 +203,7 @@ or notified body.
 Public-sector data controllers in Spain (including SNS hospitals) are
 subject to the **Esquema Nacional de Seguridad** ([Real Decreto 311/2022](https://www.boe.es/eli/es/rd/2022/05/03/311/con))
 in addition to GDPR. ENS system categorisation is impact-based (Annex I,
-Art. 40 of RD 311/2022) — it is not derived automatically from data type.
+Art. 40 of RD 311/2022), it is not derived automatically from data type.
 Processing health data in an SNS context will typically result in a
 **Nivel ALTO** categorisation, given the potential for serious harm if
 confidentiality, integrity, or availability is compromised. Under that
@@ -232,10 +233,10 @@ Single-responsibility modules; `anonymize.py` re-exports the public API.
 
 ```
 phi_table.py          PS3.15 Table E.1-1 reference data.
-actions.py            Action(str, Enum) — X / Z / U / D. ActionRegistry.
+actions.py            Action(str, Enum), X / Z / U / D. ActionRegistry.
 uid_mapper.py         Random or salted-deterministic UID remap (SHA-256(salt+orig) → 2.25.xxx).
 audit.py              Frozen dataclasses (AuditRecord / AuditSummary / ProcessingError).
-                      audit_sha256 — tamper-evident hash. render_markdown_report.
+                      audit_sha256, tamper-evident hash. render_markdown_report.
 pipeline.py           AnonymizationConfig dataclass; anonymize_file / anonymize_path.
                       Point-tag actions + curve/overlay range scrub + SQ recursion.
 cli.py                Argparse + main. All user-facing flags.
@@ -325,7 +326,7 @@ python examples/run_example.py --salt my-project-2024
 ```
 
 A hosted interactive demo runs at [huggingface.co/spaces/cpereiro/dcm-anon](https://huggingface.co/spaces/cpereiro/dcm-anon)
-(synthetic DICOM only — please do not upload real patient data to the public demo).
+(synthetic DICOM only, please do not upload real patient data to the public demo).
 
 ---
 
@@ -346,13 +347,13 @@ If you use this tool in a publication, please cite via the Zenodo DOI:
 
 ---
 
-## Hosted service — preparing
+## Hosted service, preparing
 
 A managed version with batch processing, S3-source support, private-tag
 handling, SR scanning, SLA, and retained audit logs is in preparation for
 single-team research labs.
 
-→ **[Reserve early access at the landing page](https://ces107.github.io/dcm-anon/#early-access)** — or email **[plusultra.dev@proton.me](mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access)** directly. Every email gets a personal reply within a week.
+→ **[Reserve early access at the landing page](https://ces107.github.io/dcm-anon/#early-access)**, or email **[plusultra.dev@proton.me](mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access)** directly. Every email gets a personal reply within a week.
 
 ---
 
