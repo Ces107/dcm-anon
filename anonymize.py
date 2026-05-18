@@ -56,9 +56,11 @@ try:
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _pkg_version
 
-    __version__: Final[str] = _pkg_version("dcm-anonymizer")
+    _resolved_version = _pkg_version("dcm-anonymizer")
 except (ImportError, PackageNotFoundError):  # pragma: no cover - source-checkout fallback
-    __version__ = "0.0.0+source"
+    _resolved_version = "0.0.0+source"
+
+__version__: Final[str] = _resolved_version
 
 __all__ = [
     "BURNED_IN_TAG",
