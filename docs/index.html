@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>dcm-anon — DICOM anonymizer with an audit your DPO can actually verify</title>
+<title>dcm-anon — DICOM anonymizer with an audit your DPO can verify</title>
 <meta name="description" content="Open-source DICOM anonymizer (PS3.15) that ships a verbatim-cited GDPR Art. 35 DPIA / HIPAA Safe Harbor compliance manifest. MIT, single pip install, runs offline.">
 <meta name="theme-color" content="#0b1320">
 <link rel="canonical" href="https://ces107.github.io/dcm-anon/">
@@ -38,9 +38,9 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
 <body>
 <div class="wrap">
 
-<span class="kicker">v0.3.5 · MIT · open source · <a href="https://doi.org/10.5281/zenodo.20267652" style="color:inherit;text-decoration:underline">DOI 10.5281/zenodo.20267652</a></span>
+<span class="kicker">v0.4.0 · MIT · open source · <a href="https://doi.org/10.5281/zenodo.20267652" style="color:inherit;text-decoration:underline">DOI 10.5281/zenodo.20267652</a></span>
 
-<h1>DICOM anonymization with an audit trail your DPO can actually verify.</h1>
+<h1>DICOM anonymization with an audit trail your DPO can verify.</h1>
 
 <p class="lede">PS3.15 Basic Profile + UID coherence + a verbatim-cited GDPR/HIPAA compliance manifest. MIT-licensed Python CLI, runs offline, no telemetry, single dependency.</p>
 
@@ -50,24 +50,24 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
   <a class="cta alt" href="#early-access">Reserve early access</a>
 </div>
 
-<h2>The bit nobody else seems to ship</h2>
+<h2>Compliance manifest</h2>
 <p>Every PS3.15 action (X / Z / U / D) that runs on your study is mapped to the literal text of the regulation that authorizes it — GDPR Art. 4(5), HIPAA Safe Harbor §164.514(b)(2), EU AI Act Art. 10. Re-verified against EUR-Lex / eCFR / gdpr-info.eu on 2026-05-13. SHA-256 chain over the audit log + manifest so an auditor can verify integrity from the JSON alone.</p>
 
-<h2>What's in v0.3.5</h2>
+<h2>v0.4.0</h2>
+<p>Package restructure, AI-slop cleanup, PyPI rename to <code>dcm-anon</code>. No behavioural change to anonymisation. <a href="https://github.com/Ces107/dcm-anon/blob/main/CHANGELOG.md">Changelog.</a></p>
+
+<h2>v0.3.5 highlights</h2>
 <ul>
-  <li>PS3.15 Basic Application Level Confidentiality Profile, full Table E.1-1 (2024 ed.) — 125 explicit tags plus curve / overlay groups via range mask.</li>
+  <li>PS3.15 Basic Application Level Confidentiality Profile, full Table E.1-1 (2024 ed.): 143 tags plus curve / overlay groups (50xx, 60xx) via range mask.</li>
   <li>Consistent UID remapping across Study / Series / SOP, with <code>file_meta.MediaStorageSOPInstanceUID</code> kept in sync so DICOMDIR and WADO-RS references survive.</li>
   <li>Sequence (SQ) recursion — nested PHI inside <code>RequestAttributesSequence</code>, <code>ReferencedStudySequence</code>, etc. is scrubbed, not silently skipped.</li>
   <li>Independent post-run residual verification (<code>--verify-output</code>) using a separate PHI tag list curated from HHS OCR Safe Harbor + TCIA. Defeats the "tool vouches for itself" failure mode.</li>
-  <li>Honest about limits — pixel OCR optional and flagged, private-tag scrubbing not claimed, DICOM SR content not parsed. See the README "What we do NOT do" section.</li>
+  <li>Pixel OCR not included by default. Private tags not scrubbed. SR content not scanned. Documented in the README.</li>
 </ul>
 
 <h3>Install</h3>
-<pre>pip install dcm-anonymizer
-# CLI command is `dcm-anon`. The PyPI dist name had to diverge
-# because `dcm-anon` collides with a legacy slug.</pre>
+<pre>pip install dcm-anon</pre>
 
-<h2>Why this exists at all</h2>
 <p>GDPR Art. 35 requires a DPIA for any large-scale processing of special-category health data. EDPB pseudonymisation guidelines and HHS OCR de-identification guidance both push de-id to the source site. Without a machine-verifiable mapping between technical action and regulatory clause, "we anonymized correctly" is hand-waving. <code>dcm-anon</code> emits that mapping.</p>
 
 <h2 id="early-access">Reserve early access (hosted batch)</h2>
@@ -76,11 +76,13 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
   <p class="muted small">The OSS CLI is and will stay free. A hosted batch service is in preparation for teams that want S3/GCS sources, private-tag profiles per vendor, DICOM SR content scanning, and retained audit logs. Indicative bands while I measure demand: <strong>€99 / €299 / €499 per month</strong>. No card required at this stage.</p>
 
   <p style="margin:14px 0 6px" class="small muted">Drop me a line with a one-paragraph context: what you're trying to anonymize, what regulatory regime you're under, and what the gap is today. I read every one and reply within a week.</p>
-  <p style="margin-top:14px"><a class="cta" href="mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access&amp;body=Org%20type%3A%20%0A%20%20(research%20lab%20%2F%20hospital%20%2F%20SaMD%20startup%20%2F%20vendor%20%2F%20consulting%20%2F%20other)%0A%0AVolume%20estimate%20(studies%2Fmo)%3A%20%0A%0AWhat%20problem%20were%20you%20solving%20when%20you%20found%20dcm-anon%3F%0A%0A%0AHow%20did%20you%20hear%20about%20it%3F%0A">Reserve early access →</a></p>
+  <p style="margin-top:14px">
+  <a class="cta" href="mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access&amp;body=Org%20type%3A%20%0A%20%20(research%20lab%20%2F%20hospital%20%2F%20SaMD%20startup%20%2F%20vendor%20%2F%20consulting%20%2F%20other)%0A%0AVolume%20estimate%20(studies%2Fmo)%3A%20%0A%0AWhat%20problem%20were%20you%20solving%20when%20you%20found%20dcm-anon%3F%0A%0A%0AHow%20did%20you%20hear%20about%20it%3F%0A">Email reserve</a>
+  <a class="cta alt" href="https://github.com/Ces107/dcm-anon/issues/new?template=early-access.md&title=Early+access+inquiry">Open an issue instead</a>
+  </p>
   <p class="muted small" style="margin-top:14px">Or email <a href="mailto:plusultra.dev@proton.me?subject=dcm-anon%20early%20access">plusultra.dev@proton.me</a> directly.</p>
 </div>
 
-<h2>Honest about what this is</h2>
 <p class="small">This is an engineering tool. It implements PS3.15 correctly and produces auditable artifacts that your DPO / IRB / notified-body reviewer can verify. It is NOT legal advice and does NOT certify compliance — that's your QMS and counsel's call.</p>
 <p class="small">GDPR output classification: <strong>pseudonymous</strong>, not anonymous, per Art. 4(5). HIPAA mode: Safe Harbor only (§164.514(b)(2)); not a substitute for Expert Determination. Operated from the EU.</p>
 
@@ -88,7 +90,7 @@ pre{background:#0a1422;border:1px solid var(--bord);padding:14px 16px;border-rad
   <p>Built by César Pereiro · UPV biomed alumni · async only, no calls during validation phase.</p>
   <p>
     <a href="https://github.com/Ces107/dcm-anon">GitHub</a> ·
-    <a href="https://pypi.org/project/dcm-anonymizer/">PyPI</a> ·
+    <a href="https://pypi.org/project/dcm-anon/">PyPI</a> ·
     <a href="https://huggingface.co/spaces/cpereiro/dcm-anon">HF Space</a> ·
     <a href="https://news.ycombinator.com/item?id=48176820">HN thread</a> ·
     <a href="https://riunet.upv.es/handle/10251/226903">Related TFG (fairness in SaMD)</a>

@@ -1,28 +1,9 @@
-"""DICOM PS3.15 (2024) Basic Application Level Confidentiality Profile data.
-
-Pure data module: tag tables and the burned-in-annotation tag.  Action
-*semantics* live in :mod:`actions`; processing logic lives in :mod:`pipeline`.
-This separation isolates the standard reference table — which evolves with
-DICOM editions, not with code — from the executable behaviour.
-
-Action codes per the standard:
-    X    Remove (we delete the element).
-    Z    Replace with a VR-appropriate placeholder.
-    U    Replace UID with an internally-consistent new UID.
-    D    Replace with a non-zero dummy value (we treat as X).
-
-For composite codes (X/Z, X/Z/D, ...), we use the most conservative action
-that preserves dataset validity.  See PS3.15 Annex E.
-"""
+"""PS3.15 E.1-1 tag table. Action semantics in actions.py."""
 from __future__ import annotations
 
 from typing import Final
 
-from actions import Action
-
-# ---------------------------------------------------------------------------
-# Table E.1-1 — Basic Application Level Confidentiality Profile.
-# ---------------------------------------------------------------------------
+from dcm_anon.actions import Action
 
 PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     # ---- Instance / study / series UIDs ------------------------------------

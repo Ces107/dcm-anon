@@ -1,19 +1,4 @@
-"""Command-line interface for dcm-anon.
-
-Pure I/O glue: turn argv into an :class:`AnonymizationConfig`, run
-:func:`anonymize_path`, write the audit + report + (optional) compliance
-manifest files, return an exit code.
-
-Two top-level modes:
-
-* **Anonymize mode** (default): `dcm-anon <src> <dst> [...]`. Anonymizes
-  inputs, emits the audit log, and -- when ``--manifest-mode`` is set --
-  emits a compliance manifest plus optional independent output
-  verification.
-* **Verify mode**: `dcm-anon --verify-manifest M.json --audit A.json`.
-  Re-computes the manifest SHA chain against the audit and reports
-  PASS / FAIL without touching DICOM data.
-"""
+"""CLI entry point for dcm-anon. Pure I/O glue: argv → AnonymizationConfig → run → write audit/manifest."""
 from __future__ import annotations
 
 import argparse
@@ -22,8 +7,8 @@ import logging
 import sys
 from pathlib import Path
 
-from audit import render_markdown_report
-from manifest import (
+from dcm_anon.audit import render_markdown_report
+from dcm_anon.manifest import (
     build_manifest,
     load_audit_dict,
     load_manifest_dict,
@@ -31,50 +16,35 @@ from manifest import (
     supported_regimes,
     verify_manifest,
 )
-from pipeline import (
+from dcm_anon.pipeline import (
     AnonymizationConfig,
-    AuditSummary,
     ProgressCallback,
     anonymize_path,
     parse_keep_tag,
 )
-from verify_output import VerificationResult, scan_outputs
+from dcm_anon.verify_output import VerificationResult, scan_outputs
 
 LOG = logging.getLogger("dcmanon")
 
-
-# ---------------------------------------------------------------------------
-# Argument parser
-# ---------------------------------------------------------------------------
 
 def build_arg_parser(version: str) -> argparse.ArgumentParser:
     """Build the argparse parser. Public so tests can introspect choices."""
     parser = argparse.ArgumentParser(
         prog="dcm-anon",
         description=(
-            "DICOM anonymizer — PS3.15 Basic Application Level Confidentiality "
+            "DICOM anonymizer. PS3.15 Basic Application Level Confidentiality "
             "Profile, with optional compliance manifest."
         ),
         epilog="See README.md for tags, regulatory mapping, and known limits.",
     )
-    _add_anonymize_args(parser)
-    _add_manifest_args(parser)
-    _add_verify_args(parser)
-    parser.add_argument("--quiet", action="store_true", help="Suppress info logging")
-    parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
-    parser.add_argument("--version", action="version", version=f"dcm-anon {version}")
-    return parser
 
-
-def _add_anonymize_args(parser: argparse.ArgumentParser) -> None:
+    # positional
     parser.add_argument("src", type=Path, nargs="?",
                         help="Input .dcm file or directory (omit with --verify-manifest)")
     parser.add_argument("dst", type=Path, nargs="?",
                         help="Output directory (omit with --verify-manifest)")
-    parser.add_argument("--audit-log", type=Path, default=None,
-                        help="Audit JSON path (default: <dst>/anonymization_audit.json)")
-    parser.add_argument("--report-md", type=Path, default=None,
-                        help="Optional human-readable Markdown summary path")
+
+    # anonymization options
     parser.add_argument("--salt", type=str, default=None,
                         help="Deterministic-UID salt (same salt + same source = same UIDs)")
     parser.add_argument("--dry-run", action="store_true",
@@ -84,8 +54,13 @@ def _add_anonymize_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--keep", action="append", default=[], metavar="GGGG,EEEE",
                         help="Whitelist a tag (hex group,element); repeatable")
 
+    # audit output
+    parser.add_argument("--audit-log", type=Path, default=None,
+                        help="Audit JSON path (default: <dst>/anonymization_audit.json)")
+    parser.add_argument("--report-md", type=Path, default=None,
+                        help="Optional human-readable Markdown summary path")
 
-def _add_manifest_args(parser: argparse.ArgumentParser) -> None:
+    # compliance manifest
     parser.add_argument(
         "--manifest-mode",
         choices=supported_regimes(),
@@ -130,13 +105,12 @@ def _add_manifest_args(parser: argparse.ArgumentParser) -> None:
         help=(
             "Additionally run pytesseract OCR on pixel data of sampled files "
             "(requires the tesseract binary; raises PixelOCRUnavailableError "
-            "if pytesseract or tesseract is missing — use --no-strict-ocr to "
+            "if pytesseract or tesseract is missing; use --no-strict-ocr to "
             "fall back to metadata-only scanning)"
         ),
     )
 
-
-def _add_verify_args(parser: argparse.ArgumentParser) -> None:
+    # verify-manifest mode
     parser.add_argument(
         "--verify-manifest",
         type=Path,
@@ -155,25 +129,15 @@ def _add_verify_args(parser: argparse.ArgumentParser) -> None:
         help="Audit log to verify against (required with --verify-manifest)",
     )
 
-
-# ---------------------------------------------------------------------------
-# Mode resolution
-# ---------------------------------------------------------------------------
-
-def _resolve_log_level(*, verbose: bool, quiet: bool) -> int:
-    if verbose:
-        return logging.DEBUG
-    if quiet:
-        return logging.WARNING
-    return logging.INFO
+    # logging
+    parser.add_argument("--quiet", action="store_true", help="Suppress info logging")
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
+    parser.add_argument("--version", action="version", version=f"dcm-anon {version}")
+    return parser
 
 
 def _build_keep_tags(keep_specs: list[str]) -> frozenset[tuple[int, int]]:
     return frozenset(parse_keep_tag(s) for s in keep_specs) if keep_specs else frozenset()
-
-
-def _count_targets(src: Path) -> int:
-    return 1 if src.is_file() else len(list(src.rglob("*.dcm")))
 
 
 def _build_progress_cb(total: int, *, quiet: bool) -> ProgressCallback | None:
@@ -195,20 +159,6 @@ def _build_progress_cb(total: int, *, quiet: bool) -> ProgressCallback | None:
     return tqdm_cb
 
 
-def _write_json(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def _write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# Verify-manifest sub-mode
-# ---------------------------------------------------------------------------
-
 def _run_verify_mode(args: argparse.Namespace) -> int:
     if args.audit is None:
         print(
@@ -228,50 +178,10 @@ def _run_verify_mode(args: argparse.Namespace) -> int:
     return 1
 
 
-# ---------------------------------------------------------------------------
-# Anonymize sub-mode
-# ---------------------------------------------------------------------------
-
 def _validate_anonymize_args(args: argparse.Namespace) -> str | None:
     if args.src is None or args.dst is None:
         return "src and dst are required unless --verify-manifest is used"
     return None
-
-
-def _maybe_verify_output(args: argparse.Namespace) -> VerificationResult | None:
-    if not args.verify_output:
-        return None
-    return scan_outputs(
-        args.dst,
-        sample_size=args.verify_output_sample,
-        pixel_ocr=args.verify_output_pixel_ocr,
-        strict_ocr=True,
-    )
-
-
-def _maybe_emit_manifest(
-    args: argparse.Namespace,
-    summary: AuditSummary,
-    verification: VerificationResult | None,
-) -> None:
-    if args.manifest_mode is None:
-        return
-    manifest_obj = build_manifest(
-        summary,
-        args.manifest_mode,
-        output_verification=verification,
-    )
-    json_path = args.manifest_json or args.dst / "compliance_manifest.json"
-    md_path = args.manifest_md or args.dst / "COMPLIANCE_MANIFEST.md"
-    _write_json(json_path, manifest_obj.as_dict())
-    _write_text(md_path, render_markdown(manifest_obj))
-    LOG.info(
-        "manifest emitted regime=%s manifest_sha256=%s json=%s md=%s",
-        manifest_obj.regime.code,
-        manifest_obj.manifest_sha256[:16] + "...",
-        json_path,
-        md_path,
-    )
 
 
 def _run_anonymize_mode(args: argparse.Namespace) -> int:
@@ -285,24 +195,53 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         print(f"error: --keep: {exc}", file=sys.stderr)
         return 2
 
+    total = 1 if args.src.is_file() else len(list(args.src.rglob("*.dcm")))
     config = AnonymizationConfig(
         salt=args.salt,
         dry_run=args.dry_run,
         continue_on_error=args.continue_on_error,
         keep_tags=keep_tags,
-        progress_cb=_build_progress_cb(_count_targets(args.src), quiet=args.quiet),
+        progress_cb=_build_progress_cb(total, quiet=args.quiet),
     )
 
     summary = anonymize_path(args.src, args.dst, config=config)
     summary_dict = summary.as_dict()
 
     log_path = args.audit_log or args.dst / "anonymization_audit.json"
-    _write_json(log_path, summary_dict)
-    if args.report_md is not None:
-        _write_text(args.report_md, render_markdown_report(summary_dict))
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(json.dumps(summary_dict, indent=2), encoding="utf-8")
 
-    verification = _maybe_verify_output(args)
-    _maybe_emit_manifest(args, summary, verification)
+    if args.report_md is not None:
+        args.report_md.parent.mkdir(parents=True, exist_ok=True)
+        args.report_md.write_text(render_markdown_report(summary), encoding="utf-8")
+
+    if args.manifest_mode is not None:
+        verification: VerificationResult | None = None
+        if args.verify_output:
+            verification = scan_outputs(
+                args.dst,
+                sample_size=args.verify_output_sample,
+                pixel_ocr=args.verify_output_pixel_ocr,
+                strict_ocr=True,
+            )
+        manifest_obj = build_manifest(
+            summary,
+            args.manifest_mode,
+            output_verification=verification,
+        )
+        json_path = args.manifest_json or args.dst / "compliance_manifest.json"
+        md_path = args.manifest_md or args.dst / "COMPLIANCE_MANIFEST.md"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(json.dumps(manifest_obj.as_dict(), indent=2), encoding="utf-8")
+        md_path.parent.mkdir(parents=True, exist_ok=True)
+        md_path.write_text(render_markdown(manifest_obj), encoding="utf-8")
+        LOG.info(
+            "manifest emitted regime=%s manifest_sha256=%s json=%s md=%s",
+            manifest_obj.regime.code,
+            manifest_obj.manifest_sha256[:16] + "...",
+            json_path,
+            md_path,
+        )
 
     LOG.info(
         "processed=%d failed=%d burned_in_warnings=%d uid_remaps=%d dry_run=%s audit=%s",
@@ -316,18 +255,20 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
     return 0 if summary.files_failed == 0 else 1
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 def main(argv: list[str] | None = None) -> int:
-    from anonymize import __version__
+    from dcm_anon import __version__
 
     parser = build_arg_parser(__version__)
     args = parser.parse_args(argv)
 
+    if args.verbose:
+        log_level = logging.DEBUG
+    elif args.quiet:
+        log_level = logging.WARNING
+    else:
+        log_level = logging.INFO
     logging.basicConfig(
-        level=_resolve_log_level(verbose=args.verbose, quiet=args.quiet),
+        level=log_level,
         format="%(asctime)s %(levelname)s %(message)s",
     )
 

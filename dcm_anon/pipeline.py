@@ -1,10 +1,4 @@
-"""Anonymization pipeline.
-
-The pipeline composes :mod:`phi_table`, :mod:`actions`, :mod:`uid_mapper`, and
-:mod:`audit` into the user-facing functions :func:`anonymize_file` and
-:func:`anonymize_path`. Configuration travels via :class:`AnonymizationConfig`
-to keep the public API narrow.
-"""
+"""Anonymization pipeline: composes phi_table, actions, uid_mapper, and audit."""
 from __future__ import annotations
 
 import hashlib
@@ -12,21 +6,20 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Final
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
 
-from actions import DEFAULT_REGISTRY, Action, ActionRegistry
-from audit import (
+from dcm_anon.actions import DEFAULT_REGISTRY, Action, ActionRegistry
+from dcm_anon.audit import (
     AuditRecord,
     AuditSummary,
     ProcessingError,
     audit_sha256,
     utc_now_iso,
 )
-from phi_table import BURNED_IN_TAG, CURVE_GROUP_MASK, CURVE_GROUPS, PHI_TAGS
-from uid_mapper import UIDMapper
+from dcm_anon.phi_table import BURNED_IN_TAG, CURVE_GROUP_MASK, CURVE_GROUPS, PHI_TAGS
+from dcm_anon.uid_mapper import UIDMapper
 
 LOG = logging.getLogger("dcmanon")
 
@@ -43,12 +36,8 @@ class AnonymizationConfig:
     continue_on_error: bool = False
     keep_tags: TagSet = field(default_factory=frozenset)
     progress_cb: ProgressCallback | None = None
-    registry: ActionRegistry = DEFAULT_REGISTRY
+    registry: ActionRegistry = field(default_factory=lambda: DEFAULT_REGISTRY)
 
-
-# ---------------------------------------------------------------------------
-# Pure helpers
-# ---------------------------------------------------------------------------
 
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -72,10 +61,6 @@ def parse_keep_tag(spec: str) -> tuple[int, int]:
         raise ValueError(f"keep-tag spec must be hex digits (got {spec!r})") from exc
 
 
-# ---------------------------------------------------------------------------
-# Dataset scrubbing — recursive but shallow per call-site responsibility.
-# ---------------------------------------------------------------------------
-
 def _apply_point_actions(
     ds: Dataset,
     keep: TagSet,
@@ -86,7 +71,7 @@ def _apply_point_actions(
     for tag, action in PHI_TAGS.items():
         if tag in keep or tag not in ds:
             continue
-        registry.apply(action, ds, tag, mapper)
+        registry[action](ds, tag, mapper)
         touched.append(_format_touch(tag, action.value))
     return touched
 
@@ -138,10 +123,6 @@ def _format_touch(tag: tuple[int, int], action: str) -> str:
     return f"{tag[0]:04X},{tag[1]:04X}:{action}"
 
 
-# ---------------------------------------------------------------------------
-# File-level anonymization
-# ---------------------------------------------------------------------------
-
 def _maintain_file_meta_consistency(
     ds: Dataset,
     original_sop: str | None,
@@ -150,9 +131,7 @@ def _maintain_file_meta_consistency(
     """Keep MediaStorageSOPInstanceUID synchronised with SOPInstanceUID."""
     if not original_sop:
         return
-    if not (hasattr(ds, "file_meta") and ds.file_meta is not None):
-        return
-    if not hasattr(ds.file_meta, "MediaStorageSOPInstanceUID"):
+    if not (getattr(ds, "file_meta", None) and hasattr(ds.file_meta, "MediaStorageSOPInstanceUID")):
         return
     from pydicom.uid import UID
 
@@ -196,47 +175,10 @@ def anonymize_file(
     )
 
 
-# ---------------------------------------------------------------------------
-# Batch-level orchestration
-# ---------------------------------------------------------------------------
-
 def _resolve_targets(src: Path) -> tuple[list[Path], Path]:
     if src.is_file():
         return ([src], src.parent)
     return (sorted(src.rglob("*.dcm")), src)
-
-
-def _process_one(
-    target: Path,
-    base: Path,
-    dst: Path,
-    mapper: UIDMapper,
-    config: AnonymizationConfig,
-) -> AuditRecord:
-    return anonymize_file(
-        target,
-        dst / target.relative_to(base),
-        mapper,
-        dry_run=config.dry_run,
-        keep_tags=config.keep_tags,
-        registry=config.registry,
-    )
-
-
-def _record_failure(target: Path, exc: BaseException) -> ProcessingError:
-    err = ProcessingError(
-        source=str(target),
-        error_type=type(exc).__name__,
-        error_message=str(exc),
-    )
-    LOG.warning(
-        "anonymize_failed file=%s error=%s: %s",
-        target, err.error_type, err.error_message,
-    )
-    return err
-
-
-_VERSION_FALLBACK: Final[str] = "0.0.0"
 
 
 def anonymize_path(
@@ -270,19 +212,37 @@ def anonymize_path(
 
     for index, target in enumerate(targets, start=1):
         try:
-            records.append(_process_one(target, base, dst, mapper, cfg))
+            records.append(anonymize_file(
+                target,
+                dst / target.relative_to(base),
+                mapper,
+                dry_run=cfg.dry_run,
+                keep_tags=cfg.keep_tags,
+                registry=cfg.registry,
+            ))
         except Exception as exc:
-            errors.append(_record_failure(target, exc))
+            err = ProcessingError(
+                source=str(target),
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
+            LOG.warning(
+                "anonymize_failed file=%s error=%s: %s",
+                target, err.error_type, err.error_message,
+            )
+            errors.append(err)
             if not cfg.continue_on_error:
                 raise
         finally:
             if cfg.progress_cb is not None:
                 cfg.progress_cb(index, len(targets), target)
 
-    from anonymize import __version__  # late import avoids circular
+    from dcm_anon import (
+        __version__,  # late import avoids circular; __version__ lives in the package init
+    )
 
     return AuditSummary(
-        version=__version__ if isinstance(__version__, str) else _VERSION_FALLBACK,
+        version=__version__ if isinstance(__version__, str) else "0.0.0",
         files_processed=len(records),
         files_failed=len(errors),
         burned_in_warnings=sum(1 for r in records if r.burned_in_phi_warning),

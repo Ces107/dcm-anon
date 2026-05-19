@@ -1,19 +1,44 @@
 # Changelog
 
-All notable changes to dcm-anon are documented here.
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
 ## [Unreleased]
 
-*(nothing yet)*
+---
+
+## [0.4.0] - 2026-05-19
+
+### Changed (API path)
+- **PyPI package renamed from `dcm-anonymizer` to `dcm-anon`.** Install command is now `pip install dcm-anon`. The legacy slug collision that forced the `dcm-anonymizer` workaround in v0.3.2 was resolved. CLI command, repo, and Python import path stay `dcm-anon` / `dcm_anon` (now consistent across all surfaces).
+- **Package restructured.** Production modules moved under `dcm_anon/`. Python API changes from `from anonymize import …` to `from dcm_anon import …`. CLI command `dcm-anon` is unchanged.
+- Tests moved to `tests/`. Hugging Face Space entry point moved to `spaces/app.py`.
+- `requirements.txt` deleted (use `pip install -e ".[dev]"` for development).
+
+### Changed (non-breaking)
+- AI-slop reduction pass across modules and docs: helper-function inlining (~150 LOC removed from `cli.py` alone), one-shot wrappers folded back into callers (`ActionRegistry` → plain dict, `_process_one` and `_record_failure` inlined, `_render_*` and `_load_*_dict` merged), polymorphic `accept anything` signatures narrowed to typed inputs, module docstrings compressed, section-separator comments removed.
+- `test_anonymize.py` PHI-stripping suite parametrized (9 repetitive methods → 1 parametrize block).
+- README, CHANGELOG, CONTRIBUTING, SECURITY rewritten for tighter, less generated-feeling prose.
+
+### Migration
+Old code:
+```python
+from anonymize import anonymize_file, UIDMapper
+```
+New code:
+```python
+from dcm_anon import anonymize_file, UIDMapper
+```
+The CLI command `dcm-anon` is unchanged. The JSON manifest schema is unchanged.
+
+No change to: PS3.15 tag table (143 entries), JSON manifest schema (v1.2), CLI surface, audit SHA-256 algorithm, regulatory citations.
 
 ---
 
-## [0.3.5] — 2026-05-18
+## [0.3.5] - 2026-05-18
 
-### Fixed (red-team driven; multiple P0/P1 surfaced by 5-agent adversarial review)
+### Fixed (P0/P1 from adversarial pre-release review)
 
 - **`(0400,0561) Original Attributes Sequence` is now removed** (PS3.15
   mandates X). PACS systems (Merge, Agfa IMPAX, Philips IntelliSpace) populate
@@ -25,7 +50,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `verify_output._scan_metadata` previously only checked top-level dataset
   elements. PHI surviving inside nested SQs (e.g.
   `RequestAttributesSequence`, `OriginalAttributesSequence`) was invisible to
-  the verifier — the manifest could report `passed=True` with PHI present.
+  the verifier; the manifest could report `passed=True` with PHI present.
   **P0 silent-false-negative fix.**
 - **Hugging Face Space `Anonymize` button works.** Fixed three chained
   `TypeError`s in `app.py` (wrong kwargs to `scan_outputs`, `build_manifest`,
@@ -47,7 +72,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   README/CHANGELOG/app.py now match.
 - **`argparse` `prog` name is `dcm-anon`** (was `anonymize`). `dcm-anon --help`
   now prints `usage: dcm-anon [...]`.
-- **README install/help text for pixel OCR** corrected — `--scan-burned-in`
+- **README install/help text for pixel OCR** corrected: `--scan-burned-in`
   flag does not exist; the actual flag is `--verify-output-pixel-ocr`, and
   the default is strict (raises `PixelOCRUnavailableError` if pytesseract is
   unavailable; pass `--no-strict-ocr` to fall back to metadata-only).
@@ -56,16 +81,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   €800,000): violation was Art. 66 French DPA + Art. 5(1)(a) GDPR (unlawful
   processing under a false anonymisation claim), not "documentation gap
   about output classification" per se.
-- **GPAI Code of Practice scope** corrected — applies to providers of
+- **GPAI Code of Practice scope** corrected: applies to providers of
   general-purpose AI models under AI Act Art. 53(1)(d); does not apply by
   default to narrow-domain SaMD. Cite only if the system independently
   qualifies as GPAI under Art. 3(63).
-- **ENS (Real Decreto 311/2022) wording** corrected — categorisation is
+- **ENS (Real Decreto 311/2022) wording** corrected: categorisation is
   impact-based (Annex I, Art. 40), not data-type-automatic. "Category 3"
   was confusing GDPR Art. 9 special-category classification with ENS
   security categories. Now reads "will typically result in Nivel ALTO
   under the impact-assessment procedure".
-- **Comparison table licenses** corrected — `dcm4che` is Mozilla Public
+- **Comparison table licenses** corrected: `dcm4che` is Mozilla Public
   License 1.1 (was: Apache 2.0); `Kitware/dicom-anonymizer` is BSD-3-Clause
   (was: Apache 2.0).
 - **Tag count claim** in README updated from "125 tags = mandatory + retired"
@@ -96,7 +121,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
-- Dead entry `(0002,0003) MediaStorageSOPInstanceUID` from `PHI_TAGS` — it
+- Dead entry `(0002,0003) MediaStorageSOPInstanceUID` from `PHI_TAGS`: it
   lives in `file_meta`, not the main dataset, so the action never fired.
   `file_meta` UID parity is still maintained correctly by
   `pipeline._maintain_file_meta_consistency`.
@@ -113,9 +138,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Unicode arrow (U+2192) in `examples/download_test_dicom.py` replaced
   with ASCII `->` to avoid `UnicodeEncodeError` on Windows cp1252 consoles.
 
+See `docs/postmortem-v0.3.5-phi-leak.md` for vector, scope, and the test class that prevents regression.
+
 ---
 
-## [0.3.4] — 2026-05-18
+## [0.3.4] - 2026-05-18
 
 ### Added
 
@@ -125,7 +152,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.3.3] — 2026-05-18
+## [0.3.3] - 2026-05-18
 
 ### Changed (packaging only)
 
@@ -135,9 +162,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.3.2] — 2026-05-18
+## [0.3.2] - 2026-05-18
 
-### Changed (packaging only — no functional changes)
+### Changed (packaging only; no functional changes)
 
 - **Distribution name on PyPI is `dcm-anonymizer`** (the slug `dcm-anon` is
   refused by PyPI because of similar-name collisions with two legacy projects
@@ -150,9 +177,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.3.1] — 2026-05-13
+## [0.3.1] - 2026-05-13
 
-### Changed (hardened from 5-agent adversarial red team)
+### Changed (hardened by adversarial pre-release review)
 
 - **EU AI Act enforcement-date context surfaced.** The manifest now carries
   an explicit `EU AI Act enforcement context` disclosure noting that
@@ -160,30 +187,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Annex III standalone obligations, and that the Digital Omnibus political
   agreement of 7 May 2026 proposes deferral to 2027-12-02 / 2028-08-02 but
   has not yet been formally adopted or published in the OJEU.
-  *(Note: the v0.3.5 release re-wrote this entry — earlier drafts of this
-  CHANGELOG presented the deferral as already operative, which was
-  factually wrong. The hedged language was correct in
-  `regulatory_mapping.py` from the start.)*
 - **HIPAA manifest now carries a Safe-Harbor-only declaration.** The
   `HIPAA method declaration` regime disclosure states explicitly that
   §164.514(b)(2) is implemented and §164.514(b)(1) Expert Determination requires
-  a qualified human statistician — defending against the documented failure
+  a qualified human statistician, defending against the documented failure
   mode where covered entities mistake mechanical tool output for Expert
   Determination evidence.
 - **GDPR manifest now carries an Art. 9 lawful-basis disclosure.** The
   `GDPR Art. 9 lawful basis` regime disclosure states that the tool does NOT
   establish the Art. 9(2) ground required to process special-category health
-  data — addressing the gap that DPAs (CNIL, ICO, AEPD) pursue first in
+  data, addressing the gap that DPAs (CNIL, ICO, AEPD) pursue first in
   enforcement actions, before evaluating pseudonymisation adequacy.
 
 ### Added
 
 - `regulatory_mapping.EXPERT_DETERMINATION_DISCLAIMER`, `GDPR_ART9_DISCLOSURE`,
-  `AI_ACT_DEADLINE_CONTEXT` — three new module-level constants surfacing the
+  `AI_ACT_DEADLINE_CONTEXT`: three new module-level constants for the
   defensive disclosures.
-- `ComplianceManifest.regime_disclosures: list[tuple[str, str]]` — the new
+- `ComplianceManifest.regime_disclosures: list[tuple[str, str]]`: new
   schema field carrying regime-specific disclosures. Covered by the SHA chain.
-- Independent PHI tag scanner expanded **36 → 42 tags**. Added: `OperatorsName`
+- Independent PHI tag scanner expanded **36 to 42 tags**. Added: `OperatorsName`
   (0008,1070), `PatientComments` (0010,4000), `AdmittingDiagnosesDescription`
   (0008,1080), `PatientReligiousPreference` (0010,21F0), `SpecialNeeds`
   (0038,0050), `ScheduledPerformingPhysicianName` (0040,0006). All were flagged
@@ -192,14 +215,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `verify_output.PixelOCRUnavailableError`. When `pixel_ocr=True` and
   `pytesseract`/`tesseract` is missing, `scan_outputs(...)` now raises by
   default (`strict_ocr=True`). Silent degradation produced a false green
-  manifest — a worse failure mode than a clean crash. Callers who explicitly
+  manifest, a worse failure mode than a clean crash. Callers who explicitly
   want metadata-only fallback can pass `strict_ocr=False`.
 - New test class `TestCrossFileUIDLinkage` verifying that the same source UID
   appearing in multiple files of a batch (RT-STRUCT-style scenario) is
-  remapped to the same new UID — regression-proof against the radiotherapy
+  remapped to the same new UID, regression-proof against the radiotherapy
   failure mode Red Team #5 identified.
 - New tests for regime-specific disclosures, expanded tag list, OCR strict
-  failure mode. Test suite grows **125 → 132 tests** (all passing).
+  failure mode. Test suite grows **125 to 132 tests** (all passing).
 
 ### Fixed
 
@@ -213,18 +236,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   + GDPR pseudonymisation evidence gap. EU AI Act remains a regime option but
   no longer the urgency hook.
 
-### Red team artifacts
-
-- 5 parallel adversarial agents (buyer existence, regulatory rejection,
-  clone speed, distribution failure, technical edge cases) attacked v0.3.0.
-  Findings + verdicts logged in `state/spawn-log.jsonl`. Two existential
-  findings (Digital Omnibus deadline collapse, throwaway-HN distribution
-  unreachable) drove the v0.3.1 changes and a strategy-level rethink of
-  the launch plan.
-
 ---
 
-## [0.3.0] — 2026-05-13
+## [0.3.0] - 2026-05-13
 
 ### Added (features)
 
@@ -238,7 +252,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`--verify-output`**: after anonymization, run an independent post-run
   PHI residual scan over a sample of output files (default 10). Uses a
   separate PHI tag list curated from HIPAA Safe Harbor §164.514(b)(2) and
-  the TCIA de-identification checklist — explicitly NOT derived from the
+  the TCIA de-identification checklist, explicitly NOT derived from the
   internal `phi_table`, to break the self-attestation problem. Result is
   embedded in the manifest and covered by the SHA chain.
 - **`--verify-output-sample N`** + **`--verify-output-pixel-ocr`**: tune
@@ -248,9 +262,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   that re-computes the manifest SHA chain against an audit log, reports
   PASS / FAIL with itemised reasons, exits non-zero on any mismatch.
 - **Authoritative-guidance registry**: each regime ships its post-2024
-  state-of-the-art interpretation docs (EU AI Act → MDCG 2025-6 + GPAI
-  Code of Practice; HIPAA → NIST SP 800-66r2 + HHS OCR de-id guidance;
-  GDPR → EDPB Guidelines 01/2025 on Pseudonymisation + ENISA health-sector
+  state-of-the-art interpretation docs (EU AI Act: MDCG 2025-6 + GPAI
+  Code of Practice; HIPAA: NIST SP 800-66r2 + HHS OCR de-id guidance;
+  GDPR: EDPB Guidelines 01/2025 on Pseudonymisation + ENISA health-sector
   guidance). Embedded in the manifest under `guidance_references`.
 - **Output classification + re-identification risk statement**: every
   manifest explicitly labels the output as `pseudonymous` (NOT anonymous)
@@ -264,7 +278,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Regulatory mapping completely re-verified.** Citations re-verified
   verbatim against EUR-Lex, eCFR (Cornell LII), and gdpr-info.eu on
   2026-05-13. **Critical correction:** EU AI Act Art. 10(5) was misapplied
-  in earlier drafts — it is the *bias-detection exception*, not a general
+  in earlier drafts: it is the *bias-detection exception*, not a general
   data-governance hook. Action X now cites Art. 10(2)(b) + 10(2)(c) +
   10(3). Actions Z / U / D delegate to GDPR Art. 32(1)(a) + Art. 4(5) (or
   Art. 32(1)(a) + Recital 26 for dummies). Audit trail moved to Art. 12
@@ -276,27 +290,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added (modules)
 
-- `regulatory_mapping.py` — pure-data registry of regimes, action-to-clause
+- `regulatory_mapping.py`: pure-data registry of regimes, action-to-clause
   maps, audit-trail clauses, authoritative guidance, the pseudonymous risk
   statement, and the disclaimer.
-- `manifest.py` — `ComplianceManifest` dataclass, `build_manifest()`,
+- `manifest.py`: `ComplianceManifest` dataclass, `build_manifest()`,
   `verify_manifest()`, `render_markdown()`, JSON loaders.
-- `verify_output.py` — `scan_outputs()` independent PHI residual scanner
+- `verify_output.py`: `scan_outputs()` independent PHI residual scanner
   with optional pixel OCR pass.
-- `test_manifest.py` — 59 tests covering regimes, clauses, audit trail,
+- `test_manifest.py`: 59 tests covering regimes, clauses, audit trail,
   guidance, verification, manifest build/verify/render, and the four CLI
   paths.
 
 ### Tests + tooling
 
-- Test suite grows 66 → 125 (all passing).
-- Coverage 92.5% → 88.9% (drop is the un-tested OCR path in
+- Test suite grows 66 to 125 (all passing).
+- Coverage 92.5% to 88.9% (drop is the un-tested OCR path in
   `verify_output`; rest of the codebase is 89-100%).
 - Manifest format version: **1.1**.
 
 ---
 
-## [0.2.0] — 2026-05-05
+## [0.2.0] - 2026-05-05
 
 ### Added (features)
 
@@ -318,20 +332,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and stdout is a TTY, batch runs show a per-file progress bar. Falls back to a
   stderr counter when `tqdm` is unavailable.
 
-### Changed (architecture — SOLID refactor)
+### Changed (architecture; SOLID refactor)
 
 - Split the monolithic `anonymize.py` into single-responsibility modules:
-  - `phi_table.py` — PS3.15 reference data (PHI tag table, placeholders, curve groups).
-  - `actions.py` — `Action(str, Enum)` replaces magic-string codes (`"X"`/`"Z"`/...);
+  - `phi_table.py`: PS3.15 reference data (PHI tag table, placeholders, curve groups).
+  - `actions.py`: `Action(str, Enum)` replaces magic-string codes (`"X"`/`"Z"`/...);
     `ActionRegistry` provides an open dispatch table per the Open/Closed Principle.
-  - `uid_mapper.py` — `UIDMapper` (random or salted-deterministic UID remapping).
-  - `audit.py` — typed `@dataclass(frozen=True)` records: `AuditRecord`,
+  - `uid_mapper.py`: `UIDMapper` (random or salted-deterministic UID remapping).
+  - `audit.py`: typed `@dataclass(frozen=True)` records: `AuditRecord`,
     `AuditSummary`, `ProcessingError`. Replaces the previous `dict[str, object]`
     return type that disabled static analysis.
-  - `pipeline.py` — `anonymize_file` / `anonymize_path` orchestration + the new
+  - `pipeline.py`: `anonymize_file` / `anonymize_path` orchestration + the new
     `AnonymizationConfig` dataclass for callers passing many options.
-  - `cli.py` — argparse + main entry point.
-  - `anonymize.py` — public-facing re-export module (backward-compatible).
+  - `cli.py`: argparse + main entry point.
+  - `anonymize.py`: public-facing re-export module (backward-compatible).
 - Coverage rose from 83% (single file) to **92%** across 7 modules, demonstrating
   that splitting improved testability.
 - Public API now exposes typed dataclasses for `AuditRecord` and `AuditSummary`.
@@ -356,7 +370,7 @@ CLI behaviour is unchanged for existing flag combinations; new flags are additiv
 
 ---
 
-## [0.1.0] — 2026-05-05
+## [0.1.0] - 2026-05-05
 
 ### Added
 
@@ -396,7 +410,7 @@ CLI behaviour is unchanged for existing flag combinations; new flags are additiv
 ### Fixed
 
 - `anonymize.py` previously set `ds.is_little_endian` and `ds.is_implicit_VR`
-  directly on the `FileDataset` object — these attributes are deprecated in
+  directly on the `FileDataset` object; these attributes are deprecated in
   pydicom ≥3.0 and will be removed in v4.0. Replaced with
   `save_as(..., enforce_file_format=True)`.
 - Action code for `(0020,0010) Study ID` was incorrectly `"X"` (delete); the

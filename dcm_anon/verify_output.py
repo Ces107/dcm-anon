@@ -1,55 +1,22 @@
 """Independent post-anonymization PHI residual scanner.
 
-Breaks the self-attestation problem: the anonymization pipeline cannot
-both perform de-identification and certify its own correctness. This
-module re-reads the OUTPUT files (not the in-memory dataset that was
-written) and scans them against an INDEPENDENT PHI tag list that is
-NOT derived from the internal :mod:`phi_table`.
-
-Two checks are performed:
-
-1. **Metadata residuals (fast, deterministic, always on).** Re-reads
-   each sampled output DICOM and checks whether any tag from the
-   independent PHI list still carries an identifying value. Empty,
-   placeholder, and UID-remapped values are considered clean; raw
-   strings, dates, and integers are flagged.
-
-2. **Pixel OCR scan (optional, requires pytesseract).** When
-   :func:`scan_outputs` is invoked with ``pixel_ocr=True`` and
-   pytesseract is importable, runs OCR on the pixel data of each
-   sampled file and flags any string matching a small set of PHI
-   regex patterns (dates, MRN-shaped tokens, sequences of capital
-   words that look like names). Conservative — false positives are
-   preferred to false negatives.
-
-The PHI list here is intentionally REDUNDANT with :mod:`phi_table`
-to test the pipeline's correctness, but the source of truth is
-different: this list is curated from HIPAA Safe Harbor §164.514(b)(2)
-and the TCIA published de-id checklist, NOT from PS3.15. A reviewer
-auditing this tool can verify the two lists were derived
-independently.
-
-Citations:
-    - HIPAA Safe Harbor identifiers list, 45 CFR 164.514(b)(2)(i):
-      https://www.ecfr.gov/current/title-45/section-164.514
-    - TCIA De-identification Knowledge Base:
-      https://wiki.cancerimagingarchive.net/display/Public/De-identification+Knowledge+Base
+Breaks the self-attestation problem: the pipeline cannot certify its own
+correctness, so this module re-reads output files and checks them against a
+PHI tag list derived from HIPAA Safe Harbor §164.514(b)(2) and the TCIA
+de-id checklist (NOT from :mod:`phi_table`). See README for background.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
 
-# ---------------------------------------------------------------------------
-# Independent PHI tag list — sourced from HIPAA Safe Harbor + TCIA checklist
+# Independent PHI tag list — sourced from HIPAA Safe Harbor + TCIA checklist.
 # NOT imported from phi_table to preserve the independence property.
-# ---------------------------------------------------------------------------
-
 # Format: (group, element, human_label, hipaa_category)
 #   hipaa_category cites the §164.514(b)(2)(i) sub-paragraph.
 INDEPENDENT_PHI_TAGS: Final[tuple[tuple[int, int, str, str], ...]] = (
@@ -98,9 +65,8 @@ INDEPENDENT_PHI_TAGS: Final[tuple[tuple[int, int, str, str], ...]] = (
 )
 
 
-# Acceptable cleaned values per action code semantics. These are the values
-# the dcm-anon tool emits for Z (zero/blank) and D (dummy placeholder)
-# actions. Anything else is treated as a residual.
+# Acceptable cleaned values — emitted by dcm-anon for Z (zero/blank) and D
+# (dummy placeholder) actions. Anything else is treated as a residual.
 _CLEAN_PLACEHOLDERS: Final = frozenset(
     {
         "", " ", "ANON", "ANONYMOUS", "0", "0000", "00000000", "19000101",
@@ -109,7 +75,7 @@ _CLEAN_PLACEHOLDERS: Final = frozenset(
 )
 
 
-# Pixel-OCR regex set (used only when pytesseract is available).
+# Pixel-OCR PHI patterns (used only when pytesseract is available).
 _PHI_OCR_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
     # Dates: 1990-01-01, 01/01/1990, 1 Jan 1990, etc.
     re.compile(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b"),
@@ -127,10 +93,6 @@ _PHI_OCR_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
     re.compile(r"\b\+?\d{1,3}[ -]?\(?\d{2,4}\)?[ -]?\d{3,4}[ -]?\d{3,4}\b"),
 )
 
-
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Residual:
@@ -180,10 +142,6 @@ class VerificationResult:
         }
 
 
-# ---------------------------------------------------------------------------
-# Pure helpers
-# ---------------------------------------------------------------------------
-
 def _format_tag(group: int, element: int) -> str:
     return f"{group:04X},{element:04X}"
 
@@ -200,11 +158,7 @@ def _is_uid_remapped(value: str) -> bool:
 
 
 def _value_is_clean(raw_value: object, label: str) -> tuple[bool, str]:
-    """Decide whether *raw_value* counts as a cleaned/placeholder value.
-
-    Returns ``(is_clean, excerpt)``. ``excerpt`` is a short string suitable
-    for inclusion in a residual record.
-    """
+    """Return ``(is_clean, excerpt)``; excerpt is truncated to 64 chars."""
     if raw_value is None:
         return True, ""
     text = str(raw_value).strip()
@@ -254,20 +208,19 @@ def _scan_metadata(
     return findings
 
 
-def _try_pytesseract() -> object | None:
+def _try_pytesseract() -> Any | None:
     """Return the pytesseract module if importable, else ``None``."""
     try:
         import pytesseract
+        return pytesseract
     except ImportError:
         return None
-    mod: object = pytesseract
-    return mod
 
 
 def _scan_pixels(
     ds: Dataset,
     file_path: Path,
-    pytesseract_mod: object,
+    pytesseract_mod: Any,
 ) -> list[Residual]:
     """Run pytesseract OCR on the pixel data and flag PHI-shaped strings."""
     if not hasattr(ds, "pixel_array"):
@@ -276,17 +229,12 @@ def _scan_pixels(
         arr = ds.pixel_array
     except Exception:
         return []
-    if arr is None or getattr(arr, "ndim", 0) < 2:
-        return []
     # pytesseract.image_to_string accepts a 2D ndarray of uint8.
     image = arr
     if image.ndim == 3:
         image = image[image.shape[0] // 2]
-    image_to_string = getattr(pytesseract_mod, "image_to_string", None)
-    if image_to_string is None:
-        return []
     try:
-        text = str(image_to_string(image))
+        text = str(pytesseract_mod.image_to_string(image))
     except Exception:
         return []
     findings: list[Residual] = []
@@ -302,10 +250,6 @@ def _scan_pixels(
             ))
     return findings
 
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 class PixelOCRUnavailableError(RuntimeError):
     """Raised when ``pixel_ocr=True`` but pytesseract / tesseract is missing.
@@ -334,7 +278,7 @@ def scan_outputs(
         pixel_ocr: if True, also run pytesseract OCR on pixel data.
         strict_ocr: when ``pixel_ocr=True`` and pytesseract / tesseract
             is unavailable, raise :class:`PixelOCRUnavailableError` rather
-            than silently degrading. Default ``True`` — a false green
+            than silently degrading. Default ``True``: a false green
             manifest is worse than a clean crash.
 
     Returns:
@@ -380,16 +324,10 @@ def scan_outputs(
     )
 
 
-def independent_tag_list_size() -> int:
-    """Number of tags in the independent PHI list (for manifest disclosure)."""
-    return len(INDEPENDENT_PHI_TAGS)
-
-
 __all__ = [
     "INDEPENDENT_PHI_TAGS",
     "PixelOCRUnavailableError",
     "Residual",
     "VerificationResult",
-    "independent_tag_list_size",
     "scan_outputs",
 ]

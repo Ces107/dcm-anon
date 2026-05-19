@@ -1,9 +1,4 @@
-"""Typed audit records, summary, and reporting helpers.
-
-Replaces the legacy ``dict[str, object]`` audit shape with frozen dataclasses
-so callers get type-checked field access. JSON serialisation is via the
-:meth:`as_dict` method on each dataclass.
-"""
+"""Typed audit records, summary, and reporting helpers."""
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +6,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Final
+from typing import cast
 
 
 def utc_now_iso() -> str:
@@ -33,8 +28,6 @@ class ProcessingError:
 
 @dataclass(frozen=True)
 class AuditRecord:
-    """Per-file audit information."""
-
     source: str
     source_sha256: str
     output: str | None
@@ -49,8 +42,6 @@ class AuditRecord:
 
 @dataclass(frozen=True)
 class AuditSummary:
-    """Aggregate audit dictionary for a full run."""
-
     version: str
     files_processed: int
     files_failed: int
@@ -75,32 +66,23 @@ class AuditSummary:
         }
 
 
-_HASH_ALG: Final = hashlib.sha256
-
-
-def audit_sha256(records: Iterable[AuditRecord | dict[str, object]]) -> str:
+def audit_sha256(records: Iterable[AuditRecord]) -> str:
     """Tamper-evident SHA-256 of a record list (canonical-JSON encoding)."""
-    serialisable = [
-        r.as_dict() if isinstance(r, AuditRecord) else r
-        for r in records
-    ]
+    serialisable = [r.as_dict() for r in records]
     canonical = json.dumps(serialisable, sort_keys=True, separators=(",", ":"))
-    return _HASH_ALG(canonical.encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def render_markdown_report(audit: AuditSummary | dict[str, object]) -> str:
+def render_markdown_report(audit: AuditSummary) -> str:
     """Human-readable Markdown summary suitable for IRB submissions."""
-    if isinstance(audit, AuditSummary):
-        data = audit.as_dict()
-    else:
-        data = audit
+    data = audit.as_dict()
 
     rec_count = data.get("files_processed", 0)
     err_count = data.get("files_failed", 0)
     burned = data.get("burned_in_warnings", 0)
     uids = data.get("uid_remapping_count", 0)
     sha = data.get("audit_sha256", "")
-    dry_label = " (DRY RUN — no files written)" if data.get("dry_run") else ""
+    dry_label = " (DRY RUN: no files written)" if data.get("dry_run") else ""
 
     lines: list[str] = [
         f"# DICOM Anonymization Report{dry_label}",
@@ -117,8 +99,7 @@ def render_markdown_report(audit: AuditSummary | dict[str, object]) -> str:
         "| # | Source | Tags modified | Burned-in PHI? | Output |",
         "|---|--------|---------------|----------------|--------|",
     ]
-    raw_records = data.get("records", []) or []
-    records: list[dict[str, object]] = list(raw_records) if isinstance(raw_records, list) else []
+    records: list[dict[str, object]] = cast(list[dict[str, object]], data.get("records") or [])
     for i, rec in enumerate(records, start=1):
         src = rec.get("source", "?")
         tags_val = rec.get("tags_modified", []) or []

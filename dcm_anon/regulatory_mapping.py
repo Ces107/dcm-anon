@@ -1,23 +1,4 @@
-"""Regulatory clause mapping for DICOM anonymization actions.
-
-Pure data — no behaviour. Maps each PS3.15 Basic Profile action code
-(X / Z / U / D) to the specific regulatory clauses it implements under
-the EU AI Act, HIPAA Safe Harbor, and GDPR, plus the authoritative
-post-2024 guidance that interprets those clauses.
-
-The citations in this module were verified verbatim against the
-canonical source (EUR-Lex, eCFR via Cornell LII, gdpr-info.eu) on
-2026-05-13. Every clause text quoted in a clause's ``summary`` field
-is a paraphrase suitable for human review; the ``url`` points to the
-canonical source for verbatim verification.
-
-The wedge that makes this module valuable is correctness, not
-volume: a compliance officer reading the manifest must be able to
-open the regulation in another tab, find the cited paragraph, and
-confirm the mapping holds. Sloppy citations destroy the moat.
-
-This module is NOT legal advice.
-"""
+"""PS3.15 action → regulatory clause mapping (EU AI Act, HIPAA, GDPR). Pure data."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -65,13 +46,9 @@ class RegimeMetadata:
     canonical_url: str
 
 
-# ---------------------------------------------------------------------------
-# Regime registry
-# ---------------------------------------------------------------------------
-
 EU_AI_ACT: Final = RegimeMetadata(
     code="eu-ai-act",
-    full_name="Regulation (EU) 2024/1689 — Artificial Intelligence Act",
+    full_name="Regulation (EU) 2024/1689, Artificial Intelligence Act",
     jurisdiction="European Union",
     # Currently binding date for standalone high-risk AI (Annex III) under
     # the AI Act as enacted: 2026-08-02. A provisional political agreement
@@ -86,7 +63,7 @@ EU_AI_ACT: Final = RegimeMetadata(
 
 HIPAA: Final = RegimeMetadata(
     code="hipaa",
-    full_name="HIPAA Privacy Rule — 45 CFR Part 164, Subpart E",
+    full_name="HIPAA Privacy Rule, 45 CFR Part 164, Subpart E",
     jurisdiction="United States",
     enforcement_date="2003-04-14",
     canonical_url="https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164",
@@ -94,7 +71,7 @@ HIPAA: Final = RegimeMetadata(
 
 GDPR: Final = RegimeMetadata(
     code="gdpr",
-    full_name="Regulation (EU) 2016/679 — General Data Protection Regulation",
+    full_name="Regulation (EU) 2016/679, General Data Protection Regulation",
     jurisdiction="European Union",
     enforcement_date="2018-05-25",
     canonical_url="https://eur-lex.europa.eu/eli/reg/2016/679/oj",
@@ -107,22 +84,12 @@ REGIMES: Final[dict[str, RegimeMetadata]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Per-action clause mapping
-#
-# Citations were re-verified 2026-05-13 against EUR-Lex, eCFR, and
-# gdpr-info.eu. Key correction: AI Act Art. 10(5) is NOT cited for
-# general de-identification because that paragraph is the narrow
-# bias-detection exception. The correct AI Act hooks for general de-id
-# are Art. 10(1)-10(3) for data governance and Art. 12 + Art. 18 for
-# the audit trail / technical file retention.
-# ---------------------------------------------------------------------------
-
+# Citations re-verified 2026-05-13 against EUR-Lex, eCFR, and gdpr-info.eu.
 _ACTION_X_CLAUSES: Final = [
     RegulatoryClause(
         regime=EU_AI_ACT.code,
         citation="Art. 10(2)(b) + 10(2)(c) + 10(3)",
-        short_title="Data governance — collection, cleaning, representativeness",
+        short_title="Data governance: collection, cleaning, representativeness",
         summary=(
             "Art. 10(2)(b) requires documenting 'the original purpose of the "
             "data collection'; Art. 10(2)(c) lists 'cleaning, updating, "
@@ -137,7 +104,7 @@ _ACTION_X_CLAUSES: Final = [
     RegulatoryClause(
         regime=HIPAA.code,
         citation="45 CFR 164.514(b)(2)(i)",
-        short_title="Safe Harbor — removal of 18 identifier categories",
+        short_title="Safe Harbor: removal of 18 identifier categories",
         summary=(
             "Safe Harbor requires that all 18 listed identifier categories "
             "(A) Names; (B) Geographic subdivisions smaller than a State; "
@@ -167,7 +134,7 @@ _ACTION_X_CLAUSES: Final = [
 _ACTION_Z_CLAUSES: Final = [
     RegulatoryClause(
         regime=EU_AI_ACT.code,
-        citation="Art. 10(1) (data governance) — applied via GDPR Art. 32",
+        citation="Art. 10(1) (data governance), applied via GDPR Art. 32",
         short_title="Appropriate data governance",
         summary=(
             "Art. 10(1) requires 'data governance and management practices "
@@ -182,7 +149,7 @@ _ACTION_Z_CLAUSES: Final = [
     RegulatoryClause(
         regime=HIPAA.code,
         citation="45 CFR 164.514(b)(2)(i)",
-        short_title="Safe Harbor — identifier neutralisation",
+        short_title="Safe Harbor: identifier neutralisation",
         summary=(
             "Where outright removal would break DICOM schema constraints "
             "(e.g. a Type 2 element that must be present), neutralising "
@@ -211,7 +178,7 @@ _ACTION_Z_CLAUSES: Final = [
 _ACTION_U_CLAUSES: Final = [
     RegulatoryClause(
         regime=EU_AI_ACT.code,
-        citation="Art. 10(1) (data governance) — applied via GDPR Art. 4(5)",
+        citation="Art. 10(1) (data governance), applied via GDPR Art. 4(5)",
         short_title="Pseudonymous identifier remapping",
         summary=(
             "Art. 10(1) requires appropriate data governance. For UID "
@@ -244,7 +211,7 @@ _ACTION_U_CLAUSES: Final = [
     RegulatoryClause(
         regime=GDPR.code,
         citation="Art. 4(5)",
-        short_title="Pseudonymisation — referential integrity preserved",
+        short_title="Pseudonymisation: referential integrity preserved",
         summary=(
             "Pseudonymisation 'in such a manner that the personal data "
             "can no longer be attributed to a specific data subject "
@@ -263,8 +230,8 @@ _ACTION_U_CLAUSES: Final = [
 _ACTION_D_CLAUSES: Final = [
     RegulatoryClause(
         regime=EU_AI_ACT.code,
-        citation="Art. 10(1) (data governance) — applied via GDPR Art. 32(1)(a)",
-        short_title="Dummy placeholder — schema-preserving neutralisation",
+        citation="Art. 10(1) (data governance), applied via GDPR Art. 32(1)(a)",
+        short_title="Dummy placeholder: schema-preserving neutralisation",
         summary=(
             "Where DICOM Value Representation forbids an empty value, a "
             "fixed clinically-plausible-but-non-identifying dummy (e.g. "
@@ -278,7 +245,7 @@ _ACTION_D_CLAUSES: Final = [
     RegulatoryClause(
         regime=HIPAA.code,
         citation="45 CFR 164.514(b)(2)(i)",
-        short_title="Safe Harbor — non-identifying schema-preserving substitute",
+        short_title="Safe Harbor: non-identifying schema-preserving substitute",
         summary=(
             "The substituted dummy value must not itself be identifying. "
             "Tool emits canonical placeholders (ANON for names, 19000101 "
@@ -290,7 +257,7 @@ _ACTION_D_CLAUSES: Final = [
     RegulatoryClause(
         regime=GDPR.code,
         citation="Art. 32(1)(a) + Recital 26",
-        short_title="Technical safeguard — irreversible substitute",
+        short_title="Technical safeguard: irreversible substitute",
         summary=(
             "Art. 32(1)(a) requires appropriate technical safeguards. "
             "Recital 26's 'means reasonably likely to be used' test: when "
@@ -310,18 +277,11 @@ ACTION_CLAUSES: Final[dict[str, list[RegulatoryClause]]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Cross-cutting audit-trail clauses
-#
-# These apply unconditionally (NOT under the Art. 10(5) bias-detection
-# exception). They are the correct hooks for the SIGNED audit log.
-# ---------------------------------------------------------------------------
-
 AUDIT_TRAIL_CLAUSES: Final[dict[str, list[RegulatoryClause]]] = {
     EU_AI_ACT.code: [
         RegulatoryClause(
             regime=EU_AI_ACT.code,
-            citation="Art. 11 + Annex IV — technical documentation",
+            citation="Art. 11 + Annex IV: technical documentation",
             short_title="Technical documentation of training-data preparation",
             summary=(
                 "Art. 11 requires high-risk AI system providers to draw "
@@ -329,7 +289,7 @@ AUDIT_TRAIL_CLAUSES: Final[dict[str, list[RegulatoryClause]]] = {
                 "the system is placed on the market and to keep it up to "
                 "date. Annex IV Section 2(d) calls for documentation of "
                 "the data-preparation operations applied to training, "
-                "validation and testing data — exactly what the signed "
+                "validation and testing data, which is exactly what the signed "
                 "de-identification audit log evidences. This is the "
                 "primary hook for the audit trail under the AI Act."
             ),
@@ -337,7 +297,7 @@ AUDIT_TRAIL_CLAUSES: Final[dict[str, list[RegulatoryClause]]] = {
         ),
         RegulatoryClause(
             regime=EU_AI_ACT.code,
-            citation="Art. 18 — documentation retention",
+            citation="Art. 18: documentation retention",
             short_title="10-year technical-file retention",
             summary=(
                 "The technical documentation and quality management "
@@ -350,8 +310,8 @@ AUDIT_TRAIL_CLAUSES: Final[dict[str, list[RegulatoryClause]]] = {
         ),
         RegulatoryClause(
             regime=EU_AI_ACT.code,
-            citation="Art. 12 — record-keeping (secondary, pre-deployment)",
-            short_title="Logging — secondary citation, lifecycle alignment",
+            citation="Art. 12: record-keeping (secondary, pre-deployment)",
+            short_title="Logging: secondary citation, lifecycle alignment",
             summary=(
                 "Art. 12 governs runtime event logging in a deployed "
                 "high-risk AI system over its operational lifetime "
@@ -413,20 +373,12 @@ AUDIT_TRAIL_CLAUSES: Final[dict[str, list[RegulatoryClause]]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Authoritative guidance — post-2024 interpretive documents
-#
-# These do not REPLACE the clauses above; they are the state-of-the-art
-# INTERPRETATION that regulators (EDPB, MDCG, NIST, ICO) apply when
-# auditing. Citing them proves the tool tracks current practice.
-# ---------------------------------------------------------------------------
-
 AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
     EU_AI_ACT.code: [
         GuidanceReference(
             regime=EU_AI_ACT.code,
             publisher="MDCG / European Commission",
-            title="MDCG 2025-6 / AIB 2025-1 — Interplay between MDR/IVDR and the AI Act",
+            title="MDCG 2025-6 / AIB 2025-1: Interplay between MDR/IVDR and the AI Act",
             published="2025-06",
             url=(
                 "https://health.ec.europa.eu/document/download/"
@@ -442,12 +394,12 @@ AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
         ),
         GuidanceReference(
             regime=EU_AI_ACT.code,
-            publisher="European Commission — AI Office",
-            title="General-Purpose AI Code of Practice (Final) — context only",
+            publisher="European Commission, AI Office",
+            title="General-Purpose AI Code of Practice (Final) (context only)",
             published="2025-07-10",
             url="https://digital-strategy.ec.europa.eu/en/policies/contents-code-gpai",
             relevance=(
-                "Context only — applies to providers of general-purpose AI "
+                "Context only. Applies to providers of general-purpose AI "
                 "models under AI Act Art. 53(1)(d). Narrow-domain SaMD (e.g. "
                 "a dermatology classifier trained on DICOM) is high-risk "
                 "Annex III, NOT a GPAI provider, so the GPAI Training Data "
@@ -461,13 +413,13 @@ AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
         GuidanceReference(
             regime=HIPAA.code,
             publisher="NIST",
-            title="SP 800-66 Revision 2 — Implementing the HIPAA Security Rule",
+            title="SP 800-66 Revision 2: Implementing the HIPAA Security Rule",
             published="2024-02",
             url="https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-66r2.pdf",
             relevance=(
                 "Current authoritative implementation guide for 45 CFR "
                 "164.312(b). §5 sample activities explicitly cover "
-                "automated de-identification tools — the manifest "
+                "automated de-identification tools; the manifest "
                 "format reflects 800-66r2 recommendations."
             ),
         ),
@@ -529,7 +481,7 @@ AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
             regime=GDPR.code,
             publisher="Gobierno de España (CCN-CERT)",
             title=(
-                "Esquema Nacional de Seguridad — Real Decreto 311/2022, "
+                "Esquema Nacional de Seguridad (Real Decreto 311/2022), "
                 "Nivel ALTO (CAT-ALTA) technical measures"
             ),
             published="2022-05-04",
@@ -551,10 +503,6 @@ AUTHORITATIVE_GUIDANCE: Final[dict[str, list[GuidanceReference]]] = {
     ],
 }
 
-
-# ---------------------------------------------------------------------------
-# Post-Cegedim defensive — re-identification risk framing
-# ---------------------------------------------------------------------------
 
 # CNIL decision SAN-2024-013 (Cegedim Santé, €800,000, 5 September 2024)
 # sanctioned Cegedim for (1) processing health data without the CNIL
@@ -598,14 +546,14 @@ PSEUDONYMOUS_RISK_STATEMENT: Final = (
 # as Expert Determination evidence.
 EXPERT_DETERMINATION_DISCLAIMER: Final = (
     "HIPAA method: SAFE HARBOR ONLY (45 CFR 164.514(b)(2)). This tool "
-    "implements the mechanical Safe Harbor method — removal of the 18 "
+    "implements the mechanical Safe Harbor method: removal of the 18 "
     "identifier categories listed in §164.514(b)(2)(i). It does NOT "
     "constitute Expert Determination under §164.514(b)(1), which requires "
     "a qualified human statistician to apply generally accepted "
     "statistical principles and determine that the risk of re-"
     "identification is very small (per HHS OCR de-identification guidance, "
-    "2012). If your use case requires Expert Determination — e.g. retaining "
-    "tags otherwise removed by Safe Harbor — engage a qualified expert and "
+    "2012). If your use case requires Expert Determination (e.g. retaining "
+    "tags otherwise removed by Safe Harbor), engage a qualified expert and "
     "attach their signed determination separately."
 )
 
@@ -662,7 +610,7 @@ AI_ACT_DEADLINE_CONTEXT: Final = (
 
 
 DISCLAIMER: Final = (
-    "ENGINEERING ARTIFACT — NOT LEGAL ADVICE. This document is generated by "
+    "ENGINEERING ARTIFACT, NOT LEGAL ADVICE. This document is generated by "
     "an open-source tool (dcm-anon). It cites regulatory clauses verbatim "
     "to facilitate review by your Quality Management System (QMS) and "
     "legal counsel. The tool does not certify compliance, does not act as "
@@ -709,10 +657,7 @@ def guidance_for(regime: str) -> list[GuidanceReference]:
 
 
 __all__ = [
-    "ACTION_CLAUSES",
     "AI_ACT_DEADLINE_CONTEXT",
-    "AUDIT_TRAIL_CLAUSES",
-    "AUTHORITATIVE_GUIDANCE",
     "DISCLAIMER",
     "EU_AI_ACT",
     "EXPERT_DETERMINATION_DISCLAIMER",

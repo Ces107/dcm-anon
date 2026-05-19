@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dcm-anonymizer"
-version = "0.3.5"
+name = "dcm-anon"
+version = "0.4.0"
 description = "DICOM anonymizer (PS3.15 Basic Profile) with regulator-clause-cited compliance manifest and independent output verification"
 readme = "README.md"
 license = {text = "MIT"}
@@ -17,7 +17,7 @@ keywords = [
     "compliance", "eu-ai-act", "hipaa", "gdpr", "pseudonymisation",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Healthcare Industry",
     "Intended Audience :: Science/Research",
@@ -35,7 +35,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/Ces107/dcm-anon"
 Source = "https://github.com/Ces107/dcm-anon"
-Documentation = "https://github.com/Ces107/dcm-anon#readme"
+Documentation = "https://ces107.github.io/dcm-anon/"
 "Bug Tracker" = "https://github.com/Ces107/dcm-anon/issues"
 "Hugging Face Demo" = "https://huggingface.co/spaces/cpereiro/dcm-anon"
 "Zenodo DOI" = "https://doi.org/10.5281/zenodo.20267652"
@@ -55,21 +55,11 @@ ocr = [
 ]
 
 [project.scripts]
-dcm-anon = "cli:main"
+dcm-anon = "dcm_anon.cli:main"
 
-[tool.setuptools]
-py-modules = [
-    "anonymize",
-    "actions",
-    "audit",
-    "cli",
-    "manifest",
-    "phi_table",
-    "pipeline",
-    "regulatory_mapping",
-    "uid_mapper",
-    "verify_output",
-]
+[tool.setuptools.packages.find]
+include = ["dcm_anon*"]
+exclude = ["tests*", "spaces*", "examples*", "docs*"]
 
 [tool.ruff]
 line-length = 100
@@ -90,18 +80,15 @@ warn_return_any = true
 warn_unused_configs = true
 
 [tool.pytest.ini_options]
-testpaths = ["."]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--tb=short"
 
 [tool.coverage.run]
-source = [
-    "anonymize", "actions", "audit", "cli", "manifest", "phi_table",
-    "pipeline", "regulatory_mapping", "uid_mapper", "verify_output",
-]
-omit = ["test_*", "conftest.py", "examples/*"]
+source = ["dcm_anon"]
+omit = ["tests/*", "examples/*", "spaces/*"]
 
 [tool.coverage.report]
 show_missing = true

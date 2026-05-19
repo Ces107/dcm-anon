@@ -1,19 +1,4 @@
-"""Compliance manifest builder + verifier.
-
-Given an :class:`audit.AuditSummary` and a regulatory regime
-(``eu-ai-act`` / ``hipaa`` / ``gdpr``), produces a
-:class:`ComplianceManifest` that:
-
-1. Cites the specific regulatory sub-clauses that each PS3.15 action
-   code (X / Z / U / D) implements under the chosen regime.
-2. Chains its own SHA-256 (``manifest_sha256``) from the underlying
-   ``audit_sha256``, so any tampering with either layer is detectable.
-3. Includes a tool version, generation timestamp, disclaimer header,
-   and a per-action-code summary table.
-
-Designed as an engineering evidence artifact for inclusion in a
-Quality Management System technical file. Not legal advice.
-"""
+"""Compliance manifest builder + verifier for PS3.15 de-identification runs."""
 from __future__ import annotations
 
 import hashlib
@@ -22,8 +7,9 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from typing import Final
 
-from audit import AuditSummary, utc_now_iso
-from regulatory_mapping import (
+from dcm_anon.actions import Action
+from dcm_anon.audit import AuditSummary, utc_now_iso
+from dcm_anon.regulatory_mapping import (
     AI_ACT_DEADLINE_CONTEXT,
     DISCLAIMER,
     EXPERT_DETERMINATION_DISCLAIMER,
@@ -38,11 +24,8 @@ from regulatory_mapping import (
     get_regime,
     guidance_for,
 )
-from verify_output import VerificationResult
+from dcm_anon.verify_output import VerificationResult
 
-# Per-regime regime-specific disclosures bundled into every manifest.
-# Maps regime_code -> list of (label, body) pairs so the renderer can
-# present them as separate sections without hard-coding.
 _REGIME_DISCLOSURES: dict[str, list[tuple[str, str]]] = {
     "hipaa": [
         ("HIPAA method declaration", EXPERT_DETERMINATION_DISCLAIMER),
@@ -56,15 +39,9 @@ _REGIME_DISCLOSURES: dict[str, list[tuple[str, str]]] = {
 }
 
 _MANIFEST_FORMAT_VERSION: Final = "1.2"
-_HASH_ALG: Final = hashlib.sha256
-_PS315_ACTION_CODES: Final = ("X", "Z", "U", "D")
 _PS315_PROFILE_NAME: Final = "PS3.15 Basic Application Level Confidentiality Profile (2024 ed.)"
 _OUTPUT_CLASSIFICATION: Final = "pseudonymous"
 
-
-# ---------------------------------------------------------------------------
-# Dataclass
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ActionUsage:
@@ -152,13 +129,9 @@ class ComplianceManifest:
         }
 
 
-# ---------------------------------------------------------------------------
-# Pure helpers
-# ---------------------------------------------------------------------------
-
 def _count_actions(audit: AuditSummary) -> dict[str, int]:
     """Count how often each PS3.15 action appears across the run."""
-    counts: dict[str, int] = dict.fromkeys(_PS315_ACTION_CODES, 0)
+    counts: dict[str, int] = dict.fromkeys([a.value for a in Action], 0)
     for record in audit.records:
         for entry in record.tags_modified:
             # Entries are formatted "GGGG,EEEE:CODE" or "GGGG,EEEE:X(range)".
@@ -172,11 +145,7 @@ def _count_actions(audit: AuditSummary) -> dict[str, int]:
 
 
 def _days_to_enforcement(regime: RegimeMetadata, as_of: date | None = None) -> int | None:
-    """Days from *as_of* to the regime's enforcement date.
-
-    Returns ``None`` when the enforcement date is in the past (already
-    in force) or when the date cannot be parsed.
-    """
+    """Days until enforcement, or None if past or unparseable."""
     try:
         deadline = date.fromisoformat(regime.enforcement_date)
     except ValueError:
@@ -187,14 +156,9 @@ def _days_to_enforcement(regime: RegimeMetadata, as_of: date | None = None) -> i
 
 
 def _hash_payload(payload: object) -> str:
-    """SHA-256 of the canonical JSON encoding."""
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return _HASH_ALG(canonical.encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
-
-# ---------------------------------------------------------------------------
-# Builder
-# ---------------------------------------------------------------------------
 
 def build_manifest(
     audit: AuditSummary,
@@ -219,11 +183,11 @@ def build_manifest(
     counts = _count_actions(audit)
     actions: list[ActionUsage] = [
         ActionUsage(
-            code=code,
-            count=counts[code],
-            clauses=clauses_for_action(code, regime.code),
+            code=a.value,
+            count=counts[a.value],
+            clauses=clauses_for_action(a.value, regime.code),
         )
-        for code in _PS315_ACTION_CODES
+        for a in Action
     ]
     trail = audit_trail_clauses_for(regime.code)
     guidance = guidance_for(regime.code)
@@ -285,10 +249,7 @@ def build_manifest(
     )
 
 
-# ---------------------------------------------------------------------------
-# Verifier
-# ---------------------------------------------------------------------------
-
+# Accepts both forms because callers split into JSON-loaders (dict) and library users (typed).
 def verify_manifest(
     manifest: ComplianceManifest | dict[str, object],
     audit: AuditSummary | dict[str, object],
@@ -352,15 +313,11 @@ def verify_manifest(
     return (len(reasons) == 0, reasons)
 
 
-# ---------------------------------------------------------------------------
-# Markdown renderer
-# ---------------------------------------------------------------------------
-
 def render_markdown(manifest: ComplianceManifest) -> str:
-    """Human-readable Markdown for the manifest. Designed for QMS review."""
+    """Markdown rendering of the manifest. Used for QMS attachments and IRB folders."""
     regime = manifest.regime
     lines: list[str] = [
-        f"# Compliance Manifest — {regime.code.upper()}",
+        f"# Compliance Manifest: {regime.code.upper()}",
         "",
         f"> {manifest.disclaimer}",
         "",
@@ -392,7 +349,7 @@ def render_markdown(manifest: ComplianceManifest) -> str:
         "## Output classification & re-identification risk",
         "",
         f"- **Classification:** `{manifest.output_classification}` "
-        "(NOT anonymous — see GDPR Art. 4(5))",
+        "(NOT anonymous; see GDPR Art. 4(5))",
         "",
         f"> {manifest.risk_statement}",
         "",
@@ -401,14 +358,14 @@ def render_markdown(manifest: ComplianceManifest) -> str:
     ])
     for action in manifest.actions_used:
         lines.extend([
-            f"### Action `{action.code}` — applied {action.count} time(s)",
+            f"### Action `{action.code}`: applied {action.count} time(s)",
             "",
         ])
         if not action.clauses:
             lines.append("_No clauses cited for this action under the selected regime._")
         for clause in action.clauses:
             lines.extend([
-                f"- **{clause.citation}** — *{clause.short_title}*",
+                f"- **{clause.citation}**: *{clause.short_title}*",
                 f"  > {clause.summary}",
                 f"  [Source]({clause.url})",
             ])
@@ -420,14 +377,81 @@ def render_markdown(manifest: ComplianceManifest) -> str:
     ])
     for clause in manifest.audit_trail_clauses:
         lines.extend([
-            f"- **{clause.citation}** — *{clause.short_title}*",
+            f"- **{clause.citation}**: *{clause.short_title}*",
             f"  > {clause.summary}",
             f"  [Source]({clause.url})",
         ])
 
-    lines.extend(_render_regime_disclosures(manifest.regime_disclosures))
-    lines.extend(_render_guidance(manifest.guidance_references))
-    lines.extend(_render_output_verification(manifest.output_verification))
+    if manifest.regime_disclosures:
+        lines.extend(["", "## Regime-specific disclosures", ""])
+        for label, body in manifest.regime_disclosures:
+            lines.extend([
+                f"### {label}",
+                "",
+                f"> {body}",
+                "",
+            ])
+
+    lines.extend(["", "## Authoritative guidance applied", ""])
+    if not manifest.guidance_references:
+        lines.append("_No additional guidance documents registered for this regime._")
+    else:
+        lines.append(
+            "_These post-2024 documents are the state-of-the-art interpretation "
+            "regulators apply when auditing. Cited so a reviewer can verify the "
+            "tool tracks current practice._"
+        )
+        lines.append("")
+        for ref in manifest.guidance_references:
+            lines.extend([
+                f"- **{ref.title}**, {ref.publisher} ({ref.published})",
+                f"  > {ref.relevance}",
+                f"  [Source]({ref.url})",
+            ])
+
+    lines.extend(["", "## Independent output verification", ""])
+    if manifest.output_verification is None:
+        lines.extend([
+            "_Not performed for this run._ Run with `--verify-output` to attach "
+            "an independent post-anonymization PHI residual scan to the next "
+            "manifest.",
+        ])
+    else:
+        verification = manifest.output_verification
+        status = "PASSED (no PHI residuals detected)" if verification.passed else "FAILED"
+        lines.extend([
+            f"- **Result:** {status}",
+            f"- **Files in sample:** {verification.files_scanned} of "
+            f"{verification.files_total} total",
+            f"- **Tags checked per file (independent list):** "
+            f"{verification.metadata_tags_checked_per_file}",
+            f"- **Pixel OCR scan:** "
+            f"{'enabled' if verification.pixel_ocr_enabled else 'disabled'} "
+            f"(pytesseract available: {verification.pixel_ocr_available})",
+            f"- **Residuals found:** {len(verification.residuals)}",
+            "",
+            "_The independent tag list is curated from HIPAA Safe Harbor "
+            "§164.514(b)(2) and the TCIA de-identification checklist. It is "
+            "intentionally NOT derived from the same internal table used by the "
+            "anonymizer, to break the self-attestation problem._",
+        ])
+        if verification.residuals:
+            lines.extend([
+                "",
+                "| File | Tag | Label | HIPAA category | Excerpt | Layer |",
+                "|------|-----|-------|----------------|---------|-------|",
+            ])
+            for r in verification.residuals[:25]:  # cap; rest in JSON
+                excerpt = r.value_excerpt.replace("|", "\\|")
+                lines.append(
+                    f"| `{r.file}` | `{r.tag}` | {r.tag_label} | "
+                    f"{r.hipaa_category} | `{excerpt}` | {r.layer} |"
+                )
+            if len(verification.residuals) > 25:
+                lines.append(
+                    f"\n_... and {len(verification.residuals) - 25} more (see "
+                    "`compliance_manifest.json`)._"
+                )
 
     lines.extend([
         "",
@@ -436,7 +460,7 @@ def render_markdown(manifest: ComplianceManifest) -> str:
         "To verify this manifest against its audit log:",
         "",
         "```bash",
-        "python anonymize.py --verify-manifest compliance_manifest.json \\",
+        "dcm-anon --verify-manifest compliance_manifest.json \\",
         "  --audit anonymization_audit.json",
         "```",
         "",
@@ -446,113 +470,22 @@ def render_markdown(manifest: ComplianceManifest) -> str:
     return "\n".join(lines)
 
 
-def _render_regime_disclosures(
-    disclosures: list[tuple[str, str]],
-) -> list[str]:
-    """Render regime-specific disclosures (HIPAA Safe-Harbor-only, GDPR Art.9, AI Act deadline)."""
-    if not disclosures:
-        return []
-    lines: list[str] = ["", "## Regime-specific disclosures", ""]
-    for label, body in disclosures:
-        lines.extend([
-            f"### {label}",
-            "",
-            f"> {body}",
-            "",
-        ])
-    return lines
-
-
-def _render_guidance(references: list[GuidanceReference]) -> list[str]:
-    """Render the authoritative-guidance section of the Markdown report."""
-    lines: list[str] = ["", "## Authoritative guidance applied", ""]
-    if not references:
-        lines.append("_No additional guidance documents registered for this regime._")
-        return lines
-    lines.append(
-        "_These post-2024 documents are the state-of-the-art interpretation "
-        "regulators apply when auditing. Cited so a reviewer can verify the "
-        "tool tracks current practice._"
-    )
-    lines.append("")
-    for ref in references:
-        lines.extend([
-            f"- **{ref.title}** — {ref.publisher} ({ref.published})",
-            f"  > {ref.relevance}",
-            f"  [Source]({ref.url})",
-        ])
-    return lines
-
-
-def _render_output_verification(
-    verification: VerificationResult | None,
-) -> list[str]:
-    """Render the independent-verification section of the Markdown report."""
-    lines: list[str] = ["", "## Independent output verification", ""]
-    if verification is None:
-        lines.extend([
-            "_Not performed for this run._ Run with `--verify-output` to attach "
-            "an independent post-anonymization PHI residual scan to the next "
-            "manifest.",
-        ])
-        return lines
-    status = "PASSED — no PHI residuals detected" if verification.passed else "FAILED"
-    lines.extend([
-        f"- **Result:** {status}",
-        f"- **Files in sample:** {verification.files_scanned} of "
-        f"{verification.files_total} total",
-        f"- **Tags checked per file (independent list):** "
-        f"{verification.metadata_tags_checked_per_file}",
-        f"- **Pixel OCR scan:** "
-        f"{'enabled' if verification.pixel_ocr_enabled else 'disabled'} "
-        f"(pytesseract available: {verification.pixel_ocr_available})",
-        f"- **Residuals found:** {len(verification.residuals)}",
-        "",
-        "_The independent tag list is curated from HIPAA Safe Harbor "
-        "§164.514(b)(2) and the TCIA de-identification checklist — it is "
-        "intentionally NOT derived from the same internal table used by the "
-        "anonymizer, to break the self-attestation problem._",
-    ])
-    if verification.residuals:
-        lines.extend([
-            "",
-            "| File | Tag | Label | HIPAA category | Excerpt | Layer |",
-            "|------|-----|-------|----------------|---------|-------|",
-        ])
-        for r in verification.residuals[:25]:  # cap; rest in JSON
-            excerpt = r.value_excerpt.replace("|", "\\|")
-            lines.append(
-                f"| `{r.file}` | `{r.tag}` | {r.tag_label} | "
-                f"{r.hipaa_category} | `{excerpt}` | {r.layer} |"
-            )
-        if len(verification.residuals) > 25:
-            lines.append(
-                f"\n_... and {len(verification.residuals) - 25} more (see "
-                "`compliance_manifest.json`)._"
-            )
-    return lines
-
-
-# ---------------------------------------------------------------------------
-# JSON load helper (for --verify-manifest)
-# ---------------------------------------------------------------------------
-
-def load_manifest_dict(path: str) -> dict[str, object]:
-    """Load a manifest JSON file as a dict (loose schema)."""
+def _load_json_dict(path: str, label: str) -> dict[str, object]:
     with open(path, encoding="utf-8") as fh:
         data: object = json.load(fh)
     if not isinstance(data, dict):
-        raise ValueError(f"Manifest file {path!r} is not a JSON object")
+        raise ValueError(f"{label} file {path!r} is not a JSON object")
     return data
+
+
+def load_manifest_dict(path: str) -> dict[str, object]:
+    """Load a manifest JSON file as a dict (loose schema)."""
+    return _load_json_dict(path, "Manifest")
 
 
 def load_audit_dict(path: str) -> dict[str, object]:
     """Load an audit JSON file as a dict (loose schema)."""
-    with open(path, encoding="utf-8") as fh:
-        data: object = json.load(fh)
-    if not isinstance(data, dict):
-        raise ValueError(f"Audit file {path!r} is not a JSON object")
-    return data
+    return _load_json_dict(path, "Audit")
 
 
 def supported_regimes() -> tuple[str, ...]:

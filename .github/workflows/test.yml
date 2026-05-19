@@ -27,26 +27,18 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest-cov ruff mypy
+          pip install -e ".[dev]"
 
       - name: Lint with ruff
-        run: ruff check .
+        run: ruff check dcm_anon/ tests/ spaces/
 
       - name: Type check with mypy
-        run: |
-          mypy \
-            anonymize.py actions.py audit.py cli.py manifest.py \
-            phi_table.py pipeline.py regulatory_mapping.py uid_mapper.py \
-            verify_output.py \
-            --strict --ignore-missing-imports
+        run: mypy --strict dcm_anon/
 
       - name: Run tests with coverage
         run: |
-          pytest test_anonymize.py test_manifest.py -v \
-            --cov=anonymize --cov=actions --cov=audit --cov=cli \
-            --cov=manifest --cov=phi_table --cov=pipeline \
-            --cov=regulatory_mapping --cov=uid_mapper --cov=verify_output \
+          pytest tests/ -v \
+            --cov=dcm_anon \
             --cov-report=term-missing \
             --cov-fail-under=80
 

@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 from pydicom import dcmread
-from pydicom.dataset import FileDataset
 
-from anonymize import (
+from dcm_anon import (
     PHI_TAGS,
+    AuditRecord,
     ProcessingError,
     UIDMapper,
     __version__,
@@ -24,84 +24,38 @@ from anonymize import (
     parse_keep_tag,
     render_markdown_report,
 )
-from conftest import _make_synthetic_dcm
+from tests.conftest import _make_synthetic_dcm
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# Sentinel for "tag must be absent" parametrize cases.
+_ABSENT = object()
 
-def _read(path: Path) -> FileDataset:
-    return dcmread(path)
-
-
-# ---------------------------------------------------------------------------
-# 1. Basic PHI stripping
-# ---------------------------------------------------------------------------
 
 class TestBasicPHIStripping:
-    def test_patient_name_replaced_with_placeholder(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("attr_or_tag,expected", [
+        ("PatientName", "ANON"),                # Z → replace with placeholder
+        ("PatientID", "0"),                     # Z → replace with placeholder
+        ("PatientBirthDate", "19000101"),       # Z → replace with placeholder
+        ("PatientSex", ""),                     # Z → blank (empty string)
+        ((0x0008, 0x0080), _ABSENT),            # X → Institution Name deleted
+        ((0x0008, 0x0020), _ABSENT),            # X → Study Date deleted
+        ((0x0008, 0x0021), _ABSENT),            # X → Series Date deleted
+        ((0x0018, 0x1000), _ABSENT),            # X → Device Serial Number deleted
+        ((0x0008, 0x1030), _ABSENT),            # X → Study Description deleted
+    ])
+    def test_phi_tag_value_after_anonymize(
+        self,
+        attr_or_tag: str | tuple[int, int],
+        expected: object,
+        tmp_path: Path,
+    ) -> None:
         src = tmp_path / "in.dcm"
         _make_synthetic_dcm(src)
         anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert str(out.PatientName) == "ANON"
-
-    def test_patient_id_replaced_with_placeholder(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert str(out.PatientID) == "0"
-
-    def test_patient_birth_date_replaced(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert str(out.PatientBirthDate) == "19000101"
-
-    def test_institution_name_deleted(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert (0x0008, 0x0080) not in out
-
-    def test_study_date_deleted(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert (0x0008, 0x0020) not in out
-
-    def test_series_date_deleted(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert (0x0008, 0x0021) not in out
-
-    def test_patient_sex_blanked(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        # Z action: element exists but value is empty string
-        assert str(out.PatientSex) == ""
-
-    def test_device_serial_number_deleted(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert (0x0018, 0x1000) not in out
-
-    def test_study_description_deleted(self, tmp_path: Path) -> None:
-        src = tmp_path / "in.dcm"
-        _make_synthetic_dcm(src)
-        anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
-        assert (0x0008, 0x1030) not in out
+        out = dcmread(tmp_path / "out" / "in.dcm")
+        if expected is _ABSENT:
+            assert attr_or_tag not in out
+        else:
+            assert str(getattr(out, attr_or_tag)) == expected  # type: ignore[arg-type]
 
     def test_audit_record_lists_modified_tags(self, tmp_path: Path) -> None:
         src = tmp_path / "in.dcm"
@@ -113,23 +67,19 @@ class TestBasicPHIStripping:
         assert record.timestamp_utc.endswith("Z")
 
 
-# ---------------------------------------------------------------------------
-# 2. UID remapping
-# ---------------------------------------------------------------------------
-
 class TestUIDRemapping:
     def test_sop_instance_uid_changes(self, tmp_path: Path) -> None:
         src = tmp_path / "in.dcm"
         original = _make_synthetic_dcm(src)
         anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
+        out = dcmread(tmp_path / "out" / "in.dcm")
         assert out.SOPInstanceUID != original.SOPInstanceUID
 
     def test_study_instance_uid_changes(self, tmp_path: Path) -> None:
         src = tmp_path / "in.dcm"
         original = _make_synthetic_dcm(src)
         anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
+        out = dcmread(tmp_path / "out" / "in.dcm")
         assert out.StudyInstanceUID != original.StudyInstanceUID
 
     def test_file_meta_consistent_with_dataset_sop(self, tmp_path: Path) -> None:
@@ -137,7 +87,7 @@ class TestUIDRemapping:
         src = tmp_path / "in.dcm"
         _make_synthetic_dcm(src)
         anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "in.dcm")
+        out = dcmread(tmp_path / "out" / "in.dcm")
         assert out.file_meta.MediaStorageSOPInstanceUID == out.SOPInstanceUID, (
             "MediaStorageSOPInstanceUID must equal SOPInstanceUID after anonymization "
             "otherwise DICOMDIR/WADO references are broken."
@@ -151,16 +101,12 @@ class TestUIDRemapping:
         """Two files sharing a StudyInstanceUID must share the same remapped UID."""
         src_dir, shared_study = synthetic_study_dir
         audit = anonymize_path(src_dir, tmp_path / "out")
-        out_a = _read(tmp_path / "out" / "a.dcm")
-        out_b = _read(tmp_path / "out" / "b.dcm")
+        out_a = dcmread(tmp_path / "out" / "a.dcm")
+        out_b = dcmread(tmp_path / "out" / "b.dcm")
         assert out_a.StudyInstanceUID == out_b.StudyInstanceUID
         assert str(out_a.StudyInstanceUID) != shared_study
         assert audit.files_processed == 2
 
-
-# ---------------------------------------------------------------------------
-# 3. Deterministic UID remapping via salt
-# ---------------------------------------------------------------------------
 
 class TestDeterministicUIDRemap:
     def test_same_salt_produces_same_uid(self, tmp_path: Path) -> None:
@@ -172,8 +118,8 @@ class TestDeterministicUIDRemap:
         anonymize_file(src, out1, UIDMapper(salt="test-salt"))
         anonymize_file(src, out2, UIDMapper(salt="test-salt"))
 
-        ds1 = _read(out1)
-        ds2 = _read(out2)
+        ds1 = dcmread(out1)
+        ds2 = dcmread(out2)
         assert ds1.SOPInstanceUID == ds2.SOPInstanceUID
         assert ds1.StudyInstanceUID == ds2.StudyInstanceUID
 
@@ -186,8 +132,8 @@ class TestDeterministicUIDRemap:
         anonymize_file(src, out1, UIDMapper(salt="salt-A"))
         anonymize_file(src, out2, UIDMapper(salt="salt-B"))
 
-        ds1 = _read(out1)
-        ds2 = _read(out2)
+        ds1 = dcmread(out1)
+        ds2 = dcmread(out2)
         assert ds1.SOPInstanceUID != ds2.SOPInstanceUID
 
     def test_no_salt_produces_random_uid_each_run(self, tmp_path: Path) -> None:
@@ -199,8 +145,8 @@ class TestDeterministicUIDRemap:
         anonymize_file(src, out1, UIDMapper())
         anonymize_file(src, out2, UIDMapper())
 
-        ds1 = _read(out1)
-        ds2 = _read(out2)
+        ds1 = dcmread(out1)
+        ds2 = dcmread(out2)
         # No salt → random; probability of collision is negligible.
         assert ds1.SOPInstanceUID != ds2.SOPInstanceUID
 
@@ -213,10 +159,6 @@ class TestDeterministicUIDRemap:
         assert all(c.isdigit() or c == "." for c in uid)
 
 
-# ---------------------------------------------------------------------------
-# 4. Sequence recursion
-# ---------------------------------------------------------------------------
-
 class TestSequenceRecursion:
     def test_nested_accession_number_in_request_attributes_deleted(
         self, tmp_path: Path
@@ -225,7 +167,7 @@ class TestSequenceRecursion:
         src = tmp_path / "seq.dcm"
         _make_synthetic_dcm(src, with_sequences=True)
         anonymize_file(src, tmp_path / "out" / "seq.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "seq.dcm")
+        out = dcmread(tmp_path / "out" / "seq.dcm")
 
         # RequestAttributesSequence should be deleted (action X on the whole sequence)
         assert (0x0040, 0x0275) not in out, (
@@ -244,7 +186,7 @@ class TestSequenceRecursion:
         )
 
         anonymize_file(src, tmp_path / "out" / "seq.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "seq.dcm")
+        out = dcmread(tmp_path / "out" / "seq.dcm")
 
         if (0x0008, 0x1140) in out or hasattr(out, "ReferencedStudySequence"):
             seq = out.ReferencedStudySequence
@@ -261,10 +203,6 @@ class TestSequenceRecursion:
         # Sequence containing PHI should produce at least one modification entry
         assert len(record.tags_modified) > 0
 
-
-# ---------------------------------------------------------------------------
-# 5. Burned-in annotation flag
-# ---------------------------------------------------------------------------
 
 class TestBurnedInAnnotation:
     def test_not_flagged_when_annotation_is_no(self, tmp_path: Path) -> None:
@@ -288,16 +226,12 @@ class TestBurnedInAnnotation:
         assert audit.burned_in_warnings == 1
 
 
-# ---------------------------------------------------------------------------
-# 6. Multi-frame DICOM
-# ---------------------------------------------------------------------------
-
 class TestMultiFrame:
     def test_multi_frame_anonymized_without_error(self, tmp_path: Path) -> None:
         src = tmp_path / "mf.dcm"
         _make_synthetic_dcm(src, num_frames=4)
         record = anonymize_file(src, tmp_path / "out" / "mf.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "mf.dcm")
+        out = dcmread(tmp_path / "out" / "mf.dcm")
         assert str(out.PatientName) == "ANON"
         assert int(out.NumberOfFrames) == 4
         assert record.burned_in_phi_warning is False
@@ -306,13 +240,9 @@ class TestMultiFrame:
         src = tmp_path / "mf.dcm"
         _make_synthetic_dcm(src, num_frames=8)
         anonymize_file(src, tmp_path / "out" / "mf.dcm", UIDMapper())
-        out = _read(tmp_path / "out" / "mf.dcm")
+        out = dcmread(tmp_path / "out" / "mf.dcm")
         assert out.file_meta.MediaStorageSOPInstanceUID == out.SOPInstanceUID
 
-
-# ---------------------------------------------------------------------------
-# 7. anonymize_path batch behavior
-# ---------------------------------------------------------------------------
 
 class TestAnonymizePath:
     def test_single_file_path(self, tmp_path: Path) -> None:
@@ -342,51 +272,39 @@ class TestAnonymizePath:
         _make_synthetic_dcm(src)
         anonymize_path(src, tmp_path / "out1", salt="run-A")
         anonymize_path(src, tmp_path / "out2", salt="run-A")
-        ds1 = _read(tmp_path / "out1" / "in.dcm")
-        ds2 = _read(tmp_path / "out2" / "in.dcm")
+        ds1 = dcmread(tmp_path / "out1" / "in.dcm")
+        ds2 = dcmread(tmp_path / "out2" / "in.dcm")
         assert ds1.SOPInstanceUID == ds2.SOPInstanceUID
-
-
-# ---------------------------------------------------------------------------
-# 8. Tag table integrity
-# ---------------------------------------------------------------------------
-
-_REQUIRED_TAGS: frozenset[tuple[int, int]] = frozenset({
-        # Core patient identifiers
-        (0x0010, 0x0010),  # Patient Name
-        (0x0010, 0x0020),  # Patient ID
-        (0x0010, 0x0030),  # Patient Birth Date
-        (0x0010, 0x0040),  # Patient Sex
-        # Core UIDs
-        (0x0008, 0x0018),  # SOP Instance UID
-        (0x0020, 0x000D),  # Study Instance UID
-        (0x0020, 0x000E),  # Series Instance UID
-        (0x0020, 0x0052),  # Frame of Reference UID
-        # Institutional
-        (0x0008, 0x0080),  # Institution Name
-        (0x0008, 0x0090),  # Referring Physician Name
-        # Dates added in this version
-        (0x0008, 0x0020),  # Study Date
-        (0x0008, 0x0021),  # Series Date
-        (0x0008, 0x0050),  # Accession Number
-        (0x0008, 0x1070),  # Operators Name
-        # Device
-        (0x0018, 0x1000),  # Device Serial Number
-})
 
 
 class TestTagTableIntegrity:
     def test_required_tags_present(self) -> None:
-        missing = _REQUIRED_TAGS - set(PHI_TAGS.keys())
+        required: frozenset[tuple[int, int]] = frozenset({
+            (0x0010, 0x0010),  # Patient Name
+            (0x0010, 0x0020),  # Patient ID
+            (0x0010, 0x0030),  # Patient Birth Date
+            (0x0010, 0x0040),  # Patient Sex
+            (0x0008, 0x0018),  # SOP Instance UID
+            (0x0020, 0x000D),  # Study Instance UID
+            (0x0020, 0x000E),  # Series Instance UID
+            (0x0020, 0x0052),  # Frame of Reference UID
+            (0x0008, 0x0080),  # Institution Name
+            (0x0008, 0x0090),  # Referring Physician Name
+            (0x0008, 0x0020),  # Study Date
+            (0x0008, 0x0021),  # Series Date
+            (0x0008, 0x0050),  # Accession Number
+            (0x0008, 0x1070),  # Operators Name
+            (0x0018, 0x1000),  # Device Serial Number
+        })
+        missing = required - set(PHI_TAGS.keys())
         assert not missing, f"PHI_TAGS missing required entries: {missing}"
 
     def test_all_action_codes_valid(self) -> None:
+        # PHI_TAGS must only use the 4 canonical PS3.15 action codes.
+        # Action enum membership guarantees this at construction time, but this
+        # test catches future regressions if PHI_TAGS ever switches to raw strings.
         valid = {"X", "Z", "U", "D"}
-        invalid = {
-            (tag, code)
-            for tag, code in PHI_TAGS.items()
-            if code not in valid
-        }
+        invalid = {(tag, code) for tag, code in PHI_TAGS.items() if code not in valid}
         assert not invalid, f"Unknown action codes in PHI_TAGS: {invalid}"
 
     def test_uid_tags_have_u_action(self) -> None:
@@ -407,10 +325,6 @@ class TestTagTableIntegrity:
     def test_patient_id_has_z_action(self) -> None:
         assert PHI_TAGS[(0x0010, 0x0020)] == "Z"
 
-
-# ---------------------------------------------------------------------------
-# 9. Dry-run mode (iter2)
-# ---------------------------------------------------------------------------
 
 class TestDryRun:
     def test_anonymize_file_dry_run_does_not_write_output(self, tmp_path: Path) -> None:
@@ -441,17 +355,13 @@ class TestDryRun:
         assert len(rec.tags_modified) > 5
 
 
-# ---------------------------------------------------------------------------
-# 10. Keep-tag whitelist
-# ---------------------------------------------------------------------------
-
 class TestKeepTags:
     def test_kept_tag_is_not_modified(self, tmp_path: Path) -> None:
         src = tmp_path / "in.dcm"
         _make_synthetic_dcm(src)
         keep = frozenset({(0x0010, 0x0010)})  # Patient's Name
         anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper(), keep_tags=keep)
-        out = _read(tmp_path / "out" / "in.dcm")
+        out = dcmread(tmp_path / "out" / "in.dcm")
         assert str(out.PatientName) == "DOE^JOHN^WILLIAM"
 
     def test_kept_tag_does_not_appear_in_audit(self, tmp_path: Path) -> None:
@@ -468,14 +378,10 @@ class TestKeepTags:
         _make_synthetic_dcm(src)
         keep = frozenset({(0x0010, 0x0010)})
         anonymize_file(src, tmp_path / "out" / "in.dcm", UIDMapper(), keep_tags=keep)
-        out = _read(tmp_path / "out" / "in.dcm")
+        out = dcmread(tmp_path / "out" / "in.dcm")
         assert str(out.PatientID) == "0"  # still scrubbed
         assert (0x0008, 0x0080) not in out  # InstitutionName still deleted
 
-
-# ---------------------------------------------------------------------------
-# 11. Continue-on-error
-# ---------------------------------------------------------------------------
 
 class TestContinueOnError:
     def test_malformed_dicom_aborts_when_continue_off(self, tmp_path: Path) -> None:
@@ -506,10 +412,6 @@ class TestContinueOnError:
         assert err.error_message == "oops"
 
 
-# ---------------------------------------------------------------------------
-# 12. Audit signing + Markdown report
-# ---------------------------------------------------------------------------
-
 class TestAuditIntegrity:
     def test_audit_sha256_is_hex(self, tmp_path: Path) -> None:
         src = tmp_path / "in.dcm"
@@ -521,14 +423,25 @@ class TestAuditIntegrity:
         int(sha, 16)  # valid hex
 
     def test_audit_sha256_changes_when_records_change(self) -> None:
-        a = audit_sha256([{"x": 1}])
-        b = audit_sha256([{"x": 2}])
-        assert a != b
+        rec_a = AuditRecord(
+            source="a.dcm", source_sha256="aa" * 32, output=None,
+            tags_modified=[], burned_in_phi_warning=False, dry_run=True,
+            timestamp_utc="2026-01-01T00:00:00Z",
+        )
+        rec_b = AuditRecord(
+            source="b.dcm", source_sha256="bb" * 32, output=None,
+            tags_modified=[], burned_in_phi_warning=False, dry_run=True,
+            timestamp_utc="2026-01-01T00:00:00Z",
+        )
+        assert audit_sha256([rec_a]) != audit_sha256([rec_b])
 
-    def test_audit_sha256_stable_across_key_order(self) -> None:
-        a = audit_sha256([{"a": 1, "b": 2}])
-        b = audit_sha256([{"b": 2, "a": 1}])
-        assert a == b
+    def test_audit_sha256_stable_for_identical_records(self) -> None:
+        rec = AuditRecord(
+            source="x.dcm", source_sha256="cc" * 32, output=None,
+            tags_modified=["0010,0010:X"], burned_in_phi_warning=False, dry_run=True,
+            timestamp_utc="2026-01-01T00:00:00Z",
+        )
+        assert audit_sha256([rec]) == audit_sha256([rec])
 
     def test_version_field_in_audit(self, tmp_path: Path) -> None:
         src = tmp_path / "in.dcm"
@@ -565,9 +478,6 @@ class TestMarkdownReport:
         assert "bad.dcm" in md
 
 
-# ---------------------------------------------------------------------------
-# 13. parse_keep_tag
-# ---------------------------------------------------------------------------
 
 class TestParseKeepTag:
     @pytest.mark.parametrize("spec,expected", [
@@ -586,9 +496,6 @@ class TestParseKeepTag:
             parse_keep_tag(spec)
 
 
-# ---------------------------------------------------------------------------
-# 14. Progress callback
-# ---------------------------------------------------------------------------
 
 class TestProgressCallback:
     def test_callback_invoked_per_file(self, tmp_path: Path) -> None:
@@ -606,9 +513,6 @@ class TestProgressCallback:
         assert seen == [(1, 3), (2, 3), (3, 3)]
 
 
-# ---------------------------------------------------------------------------
-# 15. CLI integration
-# ---------------------------------------------------------------------------
 
 class TestCLI:
     def test_main_dry_run_exits_zero(self, tmp_path: Path) -> None:
@@ -638,7 +542,7 @@ class TestCLI:
         rc = main([str(src), str(tmp_path / "out"),
                    "--keep", "0010,0010", "--quiet"])
         assert rc == 0
-        out_ds = _read(tmp_path / "out" / "in.dcm")
+        out_ds = dcmread(tmp_path / "out" / "in.dcm")
         assert str(out_ds.PatientName) == "DOE^JOHN^WILLIAM"
 
     def test_main_invalid_keep_returns_two(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

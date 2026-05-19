@@ -1,9 +1,4 @@
-"""Stable original→new UID mapping.
-
-Single responsibility: track UID rewrites for one anonymization run and ensure
-that the same original UID always maps to the same output UID within that run
-(or across runs, when a salt is provided).
-"""
+"""Stable original→new UID mapping for one anonymization run."""
 from __future__ import annotations
 
 import hashlib
@@ -19,10 +14,7 @@ _HEX_BYTES_FOR_UID = 30  # 30 hex chars ≈ 120 bits, safely under 64-char UID l
 
 @dataclass
 class UIDMapper:
-    """Stable original→new UID mapping.
-
-    With a *salt*, UIDs are derived deterministically via SHA-256, so the same
-    salt + same source UID always produces the same output. Useful for
+    """With a *salt*, UIDs are derived deterministically (SHA-256), enabling
     reproducible anonymization across runs (longitudinal cohorts).
     """
 

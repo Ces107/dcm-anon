@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pydicom import dcmread
 from pydicom.dataset import Dataset
 
-from anonymize import UIDMapper, anonymize_file
+from dcm_anon import UIDMapper, anonymize_file
 
 DATA_DIR = Path(__file__).parent / "data"
 OUT_DIR = Path(__file__).parent / "out"

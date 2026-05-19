@@ -15,18 +15,16 @@ from pathlib import Path
 import pytest
 from pydicom import dcmread
 
-from anonymize import UIDMapper, anonymize_file
-from audit import AuditSummary, audit_sha256
-from cli import main as cli_main
-from conftest import _make_synthetic_dcm
-from manifest import (
-    _PS315_PROFILE_NAME,
+from dcm_anon import UIDMapper, anonymize_file
+from dcm_anon.audit import AuditSummary, audit_sha256
+from dcm_anon.cli import main as cli_main
+from dcm_anon.manifest import (
     build_manifest,
     render_markdown,
     supported_regimes,
     verify_manifest,
 )
-from regulatory_mapping import (
+from dcm_anon.regulatory_mapping import (
     AUTHORITATIVE_GUIDANCE,
     PSEUDONYMOUS_RISK_STATEMENT,
     audit_trail_clauses_for,
@@ -34,16 +32,13 @@ from regulatory_mapping import (
     get_regime,
     guidance_for,
 )
-from verify_output import (
+from dcm_anon.verify_output import (
     INDEPENDENT_PHI_TAGS,
     PixelOCRUnavailableError,
-    independent_tag_list_size,
     scan_outputs,
 )
+from tests.conftest import _make_synthetic_dcm
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def anonymized_dir(tmp_path: Path) -> tuple[Path, AuditSummary]:
@@ -68,9 +63,6 @@ def anonymized_dir(tmp_path: Path) -> tuple[Path, AuditSummary]:
     return (out, summary)
 
 
-# ---------------------------------------------------------------------------
-# 1. regulatory_mapping
-# ---------------------------------------------------------------------------
 
 class TestRegulatoryRegimes:
     def test_three_regimes_supported(self) -> None:
@@ -184,14 +176,11 @@ class TestGuidance:
         assert any("SP 800-66" in t for t in titles)
 
 
-# ---------------------------------------------------------------------------
-# 2. verify_output (independent PHI residual scanner)
-# ---------------------------------------------------------------------------
 
 class TestIndependentTagList:
     def test_independent_list_is_substantial(self) -> None:
         """Sanity floor: at least 40 tags drawn from HIPAA Safe Harbor + TCIA."""
-        assert independent_tag_list_size() >= 40
+        assert len(INDEPENDENT_PHI_TAGS) >= 40
 
     def test_independent_list_covers_18_hipaa_categories(self) -> None:
         """At least 6 of the 18 HIPAA Safe Harbor sub-categories appear."""
@@ -260,9 +249,6 @@ class TestScanOutputs:
         # We do not assert its value — only that we did not crash.
 
 
-# ---------------------------------------------------------------------------
-# 2b. Cross-file UID linkage (Red Team #5 RT-STRUCT-style attack)
-# ---------------------------------------------------------------------------
 
 class TestCrossFileUIDLinkage:
     """RT-STRUCT-style: the same source UID appearing in multiple files of a
@@ -274,7 +260,7 @@ class TestCrossFileUIDLinkage:
     def test_same_source_uid_remapped_consistently_across_files(
         self, tmp_path: Path
     ) -> None:
-        from anonymize import anonymize_path
+        from dcm_anon import anonymize_path
         src_dir = tmp_path / "in"
         out_dir = tmp_path / "out"
         src_dir.mkdir()
@@ -304,9 +290,6 @@ class TestCrossFileUIDLinkage:
         assert str(out_a.StudyInstanceUID) != shared_uid
 
 
-# ---------------------------------------------------------------------------
-# 3. manifest
-# ---------------------------------------------------------------------------
 
 class TestBuildManifest:
     def test_build_succeeds_for_each_regime(self, anonymized_dir: tuple[Path, AuditSummary]) -> None:
@@ -337,7 +320,7 @@ class TestBuildManifest:
     def test_ps315_profile_name_recorded(self, anonymized_dir: tuple[Path, AuditSummary]) -> None:
         _, summary = anonymized_dir
         m = build_manifest(summary, "gdpr")
-        assert m.ps315_profile == _PS315_PROFILE_NAME
+        assert m.ps315_profile == "PS3.15 Basic Application Level Confidentiality Profile (2024 ed.)"
 
     def test_action_counts_match_audit(self, anonymized_dir: tuple[Path, AuditSummary]) -> None:
         _, summary = anonymized_dir
@@ -486,9 +469,6 @@ class TestMarkdownRender:
         assert "PASSED" in md
 
 
-# ---------------------------------------------------------------------------
-# 4. CLI integration
-# ---------------------------------------------------------------------------
 
 class TestManifestCLI:
     def test_emits_both_manifest_files(self, tmp_path: Path) -> None:

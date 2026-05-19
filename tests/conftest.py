@@ -9,14 +9,6 @@ from pydicom.sequence import Sequence
 from pydicom.uid import UID, ExplicitVRLittleEndian, generate_uid
 
 
-def _build_file_meta(sop_instance_uid: str) -> FileMetaDataset:
-    meta = FileMetaDataset()
-    meta.MediaStorageSOPClassUID = UID("1.2.840.10008.5.1.4.1.1.2")  # CT Image Storage
-    meta.MediaStorageSOPInstanceUID = UID(sop_instance_uid)
-    meta.TransferSyntaxUID = ExplicitVRLittleEndian
-    return meta
-
-
 def _make_synthetic_dcm(
     path: Path,
     *,
@@ -26,27 +18,13 @@ def _make_synthetic_dcm(
     series_uid: str | None = None,
     num_frames: int = 1,
 ) -> Dataset:
-    """Build and save a synthetic DICOM with realistic PHI fields.
-
-    Parameters
-    ----------
-    path:
-        Destination path; parent directories are created automatically.
-    burned_in:
-        Set BurnedInAnnotation to YES (triggers burned-in warning).
-    with_sequences:
-        Populate RequestAttributesSequence and ReferencedStudySequence
-        containing nested PHI tags.
-    study_uid:
-        Fix StudyInstanceUID (useful for multi-file consistency tests).
-    series_uid:
-        Fix SeriesInstanceUID.
-    num_frames:
-        Number of frames in PixelData (multi-frame test helper).
-    """
+    """Synthetic DICOM for tests; burned_in=True sets BurnedInAnnotation=YES."""
     path.parent.mkdir(parents=True, exist_ok=True)
     sop_uid = generate_uid()
-    meta = _build_file_meta(sop_uid)
+    meta = FileMetaDataset()
+    meta.MediaStorageSOPClassUID = UID("1.2.840.10008.5.1.4.1.1.2")  # CT Image Storage
+    meta.MediaStorageSOPInstanceUID = UID(sop_uid)
+    meta.TransferSyntaxUID = ExplicitVRLittleEndian
 
     ds = FileDataset(str(path), Dataset(), file_meta=meta, preamble=b"\0" * 128)
 
@@ -131,28 +109,22 @@ def _make_synthetic_dcm(
 
 @pytest.fixture
 def synthetic_dcm(tmp_path: Path) -> Dataset:
-    """Single synthetic DICOM file with all standard PHI fields."""
-    p = tmp_path / "test.dcm"
-    return _make_synthetic_dcm(p)
+    return _make_synthetic_dcm(tmp_path / "test.dcm")
 
 
 @pytest.fixture
 def synthetic_dcm_with_sequences(tmp_path: Path) -> Dataset:
-    """Synthetic DICOM that contains nested PHI inside Sequence items."""
-    p = tmp_path / "seq.dcm"
-    return _make_synthetic_dcm(p, with_sequences=True)
+    return _make_synthetic_dcm(tmp_path / "seq.dcm", with_sequences=True)
 
 
 @pytest.fixture
 def synthetic_dcm_burned_in(tmp_path: Path) -> Dataset:
-    """Synthetic DICOM flagged as having burned-in pixel annotations."""
-    p = tmp_path / "burned.dcm"
-    return _make_synthetic_dcm(p, burned_in=True)
+    return _make_synthetic_dcm(tmp_path / "burned.dcm", burned_in=True)
 
 
 @pytest.fixture
 def synthetic_study_dir(tmp_path: Path) -> tuple[Path, str]:
-    """Directory of two synthetic DICOMs sharing the same StudyInstanceUID."""
+    """Two DICOMs sharing the same StudyInstanceUID."""
     shared_study = generate_uid()
     src = tmp_path / "in"
     src.mkdir()
