@@ -184,4 +184,4 @@ with gr.Blocks(title="dcm-anon demo") as demo:
 demo.queue()
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", show_api=False)
+    demo.launch(server_name="0.0.0.0")
