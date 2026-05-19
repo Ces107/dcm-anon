@@ -21,7 +21,7 @@ from pathlib import Path
 # Monkey-patch gradio_client schema handler before gradio imports.
 # Upstream bug: get_type raises TypeError on bool schemas (additionalProperties: True).
 # Affects /info endpoint -> "No API found" in HF Space UI. Present in 4.x and 5.x.
-import gradio_client.utils as _gru  # noqa: E402
+import gradio_client.utils as _gru
 
 _orig_get_type = _gru.get_type
 _orig_json_to_py = _gru._json_schema_to_python_type
@@ -44,9 +44,9 @@ _gru._json_schema_to_python_type = _patched_json_to_py  # type: ignore[assignmen
 
 import gradio as gr  # noqa: E402
 
-from dcm_anon import AnonymizationConfig, anonymize_path
-from dcm_anon.manifest import build_manifest
-from dcm_anon.verify_output import scan_outputs
+from dcm_anon import AnonymizationConfig, anonymize_path  # noqa: E402
+from dcm_anon.manifest import build_manifest  # noqa: E402
+from dcm_anon.verify_output import scan_outputs  # noqa: E402
 
 DEMO_HEADER = """# dcm-anon: interactive demo
 
