@@ -1,8 +1,8 @@
 """Hugging Face Space demo for dcm-anon.
 
-Synthetic-DICOM only. Refuses uploads larger than 2 MB or containing
-identifiable patient metadata patterns. Outputs a downloadable zip with
-the anonymized file, audit log, and compliance manifest.
+Synthetic-DICOM only. Refuses uploads larger than 2 MB. Outputs a
+downloadable zip with the anonymized file, audit log, and compliance
+manifest.
 
 NOT a hosted production service. For real research workflows, install
 locally: `pip install dcm-anonymizer` (CLI command stays `dcm-anon`).
@@ -18,13 +18,37 @@ import time
 import zipfile
 from pathlib import Path
 
-import gradio as gr
+# Monkey-patch gradio_client schema handler before gradio imports.
+# Upstream bug: get_type raises TypeError on bool schemas (additionalProperties: True).
+# Affects /info endpoint -> "No API found" in HF Space UI. Present in 4.x and 5.x.
+import gradio_client.utils as _gru  # noqa: E402
+
+_orig_get_type = _gru.get_type
+_orig_json_to_py = _gru._json_schema_to_python_type
+
+
+def _patched_get_type(schema: object) -> str:
+    if isinstance(schema, bool):
+        return "Any" if schema else "Never"
+    return _orig_get_type(schema)  # type: ignore[arg-type]
+
+
+def _patched_json_to_py(schema: object, defs: object) -> str:
+    if isinstance(schema, bool):
+        return "Any" if schema else "Never"
+    return _orig_json_to_py(schema, defs)  # type: ignore[arg-type]
+
+
+_gru.get_type = _patched_get_type  # type: ignore[assignment]
+_gru._json_schema_to_python_type = _patched_json_to_py  # type: ignore[assignment]
+
+import gradio as gr  # noqa: E402
 
 from dcm_anon import AnonymizationConfig, anonymize_path
 from dcm_anon.manifest import build_manifest
 from dcm_anon.verify_output import scan_outputs
 
-DEMO_HEADER = """# dcm-anon — interactive demo
+DEMO_HEADER = """# dcm-anon: interactive demo
 
 Upload a **synthetic** DICOM file (e.g. from
 [pydicom test data](https://github.com/pydicom/pydicom/tree/main/pydicom/data/test_files)
@@ -32,9 +56,10 @@ or [TCIA](https://www.cancerimagingarchive.net/)) to see the
 anonymized output, audit log, and compliance manifest.
 
 **Do not upload files containing real PHI.** This Space runs on shared
-public infrastructure with no data-protection agreement.
+public infrastructure with no DPA and no encryption at rest. Your upload
+is visible to the pod that processes it. Max 2 MB.
 
-Local install for real workflows:
+For real research data, install locally:
 
 ```bash
 pip install dcm-anonymizer
@@ -49,8 +74,6 @@ _CLEANUP_DELAY_SECONDS = 30
 
 
 def _deferred_rmtree(path: Path, delay: int = _CLEANUP_DELAY_SECONDS) -> None:
-    """Delete *path* after *delay* seconds in a daemon thread."""
-
     def _worker() -> None:
         time.sleep(delay)
         shutil.rmtree(path, ignore_errors=True)
@@ -108,45 +131,16 @@ def run_demo(file_obj: object, manifest_mode: str, salt: str) -> tuple[str, str,
         f"Independent verification residuals: {len(verify.residuals)}"
     )
 
-    # Schedule workdir deletion after Gradio has had time to serve the zip.
     _deferred_rmtree(workdir)
 
     return summary_text, json.dumps(manifest_dict, indent=2), str(zip_path)
 
 
-def gated_run_demo(
-    file_obj: object,
-    manifest_mode: str,
-    salt: str,
-    acknowledged: bool,
-) -> tuple[str, str, str]:
-    """Wrapper that requires the PHI acknowledgement checkbox before running."""
-    if not acknowledged:
-        return (
-            "You must confirm the upload is synthetic before running.",
-            "",
-            "",
-        )
-    return run_demo(file_obj, manifest_mode, salt)
-
-
 with gr.Blocks(title="dcm-anon demo") as demo:
     gr.Markdown(DEMO_HEADER)
-    gr.HTML(
-        '<div style="background:#3a2611;border:1px solid #e5c896;color:#e5c896;'
-        'padding:14px 18px;border-radius:8px;font-size:14px;line-height:1.5;'
-        'margin:12px 0">'
-        "<strong>This is a shared public Space.</strong> "
-        "It has no DPA, no encryption at rest, and your upload is visible to the "
-        "pod that processes it. <strong>Use only synthetic DICOMs</strong> "
-        "(e.g. pydicom test data, TCIA samples, or any file you would email "
-        "to an unknown public mailbox).<br><br>"
-        "For real research data, run <code>pip install dcm-anon</code> locally."
-        "</div>"
-    )
     with gr.Row():
         with gr.Column():
-            file_in = gr.File(label="Synthetic DICOM (.dcm) — max 2 MB", file_types=[".dcm"])
+            file_in = gr.File(label="Synthetic DICOM (.dcm), max 2 MB", file_types=[".dcm"])
             regime = gr.Radio(
                 ["gdpr", "hipaa", "eu-ai-act"],
                 value="gdpr",
@@ -156,10 +150,6 @@ with gr.Blocks(title="dcm-anon demo") as demo:
                 label="Salt (optional, for deterministic UIDs)",
                 placeholder="e.g. cohort-A-2024",
             )
-            ack = gr.Checkbox(
-                label="I confirm this file contains no real PHI (synthetic or fully anonymised already).",
-                value=False,
-            )
             btn = gr.Button("Anonymize", variant="primary")
         with gr.Column():
             summary_out = gr.Textbox(label="Summary", lines=6)
@@ -167,8 +157,8 @@ with gr.Blocks(title="dcm-anon demo") as demo:
             zip_out = gr.File(label="Download output zip")
 
     btn.click(
-        gated_run_demo,
-        [file_in, regime, salt, ack],
+        run_demo,
+        [file_in, regime, salt],
         [summary_out, manifest_out, zip_out],
         api_name="anonymize",
     )
