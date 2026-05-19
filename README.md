@@ -14,9 +14,9 @@ DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps eve
 
 ## Install
 
-**`pip install dcm-anon`** (Python 3.10+; one runtime dep: `pydicom>=2.4`).
+**`pip install dcm-anonymizer`** (Python 3.10+; one runtime dep: `pydicom>=2.4`).
 
-CLI command: `dcm-anon`. Python API: `from dcm_anon import anonymize_file, ...`. Source install for contributors: `pip install -e ".[dev]"`.
+CLI command: `dcm-anon`. Python API: `from dcm_anon import anonymize_file, ...`. The PyPI distribution name differs because PyPI's similar-name check rejects `dcm-anon` against pre-existing `dcmanon` and `dicom-anon`; a PEP 541 claim for `dcm-anon` is the path to align them and is pending. Source install for contributors: `pip install -e ".[dev]"`.
 
 Optional: `pytesseract` (plus the system `tesseract` binary) for pixel-data PHI scanning via `--verify-output-pixel-ocr`. The default is strict: if pytesseract is unavailable the CLI raises `PixelOCRUnavailableError` rather than silently producing a green manifest; pass `--no-strict-ocr` to opt into a metadata-only fallback.
 

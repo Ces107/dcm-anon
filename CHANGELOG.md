@@ -11,7 +11,7 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 ## [0.4.0] - 2026-05-19
 
 ### Changed (API path)
-- **PyPI package renamed from `dcm-anonymizer` to `dcm-anon`.** Install command is now `pip install dcm-anon`. The legacy slug collision that forced the `dcm-anonymizer` workaround in v0.3.2 was resolved. CLI command, repo, and Python import path stay `dcm-anon` / `dcm_anon` (now consistent across all surfaces).
+- **PyPI rename to `dcm-anon` attempted and BLOCKED.** PyPI's similar-name check (different from name-exists check) rejects `dcm-anon` against pre-existing `dcmanon` and `dicom-anon` packages. Distribution name stays `dcm-anonymizer` until a PEP 541 claim for `dcm-anon` is filed and resolved. CLI command, repo, and Python import path remain `dcm-anon` / `dcm_anon` as before.
 - **Package restructured.** Production modules moved under `dcm_anon/`. Python API changes from `from anonymize import …` to `from dcm_anon import …`. CLI command `dcm-anon` is unchanged.
 - Tests moved to `tests/`. Hugging Face Space entry point moved to `spaces/app.py`.
 - `requirements.txt` deleted (use `pip install -e ".[dev]"` for development).
