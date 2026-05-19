@@ -12,6 +12,13 @@ url: "https://github.com/Ces107/dcm-anon"
 license: MIT
 version: "0.4.0"
 date-released: "2026-05-19"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.20267651"
+    description: "Concept DOI (always resolves to latest version)"
+  - type: doi
+    value: "10.5281/zenodo.20282264"
+    description: "Version-specific DOI for v0.4.0"
 keywords:
   - DICOM
   - medical-imaging

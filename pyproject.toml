@@ -38,7 +38,7 @@ Source = "https://github.com/Ces107/dcm-anon"
 Documentation = "https://ces107.github.io/dcm-anon/"
 "Bug Tracker" = "https://github.com/Ces107/dcm-anon/issues"
 "Hugging Face Demo" = "https://huggingface.co/spaces/cpereiro/dcm-anon"
-"Zenodo DOI" = "https://doi.org/10.5281/zenodo.20267652"
+"Zenodo DOI" = "https://doi.org/10.5281/zenodo.20267651"
 
 [project.optional-dependencies]
 dev = [

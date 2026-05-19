@@ -3,7 +3,7 @@
 DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps every action to its regulatory citation. GDPR Art. 35 / HIPAA Safe Harbor.
 
 [![CI](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml/badge.svg)](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20267652.svg)](https://doi.org/10.5281/zenodo.20267652)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20267651.svg)](https://doi.org/10.5281/zenodo.20267651)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![Manifest format](https://img.shields.io/badge/manifest_format-v1.2-blueviolet)](dcm_anon/manifest.py)
@@ -349,7 +349,7 @@ If you use this tool in a publication, please cite via the Zenodo DOI:
   title        = {{dcm-anon: DICOM anonymizer with verbatim-cited compliance manifest}},
   year         = {2026},
   publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.20267652},
+  doi          = {10.5281/zenodo.20267651},
   url          = {https://github.com/Ces107/dcm-anon},
 }
 ```
