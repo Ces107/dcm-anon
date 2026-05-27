@@ -53,6 +53,9 @@ progress = [
 ocr = [
     "pytesseract>=0.3",
 ]
+pdf = [
+    "reportlab>=4.0",
+]
 
 [project.scripts]
 dcm-anon = "dcm_anon.cli:main"

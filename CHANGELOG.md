@@ -6,6 +6,18 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 
 ## [Unreleased]
 
+### Added
+- **PDF audit report (`--pdf-report PATH | auto`).** Optional `[pdf]` extra
+  (`pip install 'dcm-anonymizer[pdf]'`) adds a professional PDF compliance
+  report alongside the existing JSON + Markdown manifest outputs. Pure-Python
+  via reportlab; no LaTeX or external binaries required. The PDF carries the
+  cover page (regime + SHA-256s), run summary, per-file action table,
+  PS3.15 actions with verbatim regulatory citations under the chosen regime,
+  regime-specific disclosures, independent output-verification result, and
+  the verify-on-an-auditor's-machine command. Works without `--manifest-mode`
+  for audit-only PDFs. Sample at `docs/sample-audit-report.pdf`. Tests in
+  `tests/test_pdf_report.py`.
+
 ---
 
 ## [0.4.0] - 2026-05-19

@@ -11,6 +11,8 @@ venv/
 out/
 out_*/
 audit.json
+demo-input/
+demo-output/
 .DS_Store
 *.egg-info/
 dist/

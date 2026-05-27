@@ -102,6 +102,9 @@ dcm-anon input.dcm out/ --keep 0010,0010 --keep 0008,0090
 
 # Markdown summary alongside the JSON audit log
 dcm-anon /data/study out/ --report-md report.md
+
+# Professional PDF audit report (requires the [pdf] extra)
+dcm-anon /data/study out/ --manifest-mode gdpr --pdf-report auto
 ```
 
 ---
@@ -137,6 +140,35 @@ out/
 ├── compliance_manifest.json     Structured + SHA-chained. For auditors / CI.
 └── anonymization_audit.json     The per-tag log the manifest signs over.
 ```
+
+### PDF audit report (`--pdf-report`, optional [pdf] extra)
+
+For procurement, IRB submission, or any handoff where the recipient
+expects a printable evidence pack, attach a professional PDF report:
+
+```bash
+pip install 'dcm-anonymizer[pdf]'
+
+# Default location: <dst>/COMPLIANCE_REPORT.pdf
+dcm-anon /data/study out/ --manifest-mode gdpr --verify-output --pdf-report auto
+
+# Or an explicit path
+dcm-anon /data/study out/ --manifest-mode hipaa --pdf-report ./hipaa-evidence-pack.pdf
+```
+
+The PDF carries: cover page (regime + audit/manifest SHA-256), run
+summary, per-file action table (first 50 records), PS3.15 actions with
+verbatim regulatory citations, regime-specific disclosures
+(GDPR Art. 9 lawful basis, HIPAA expert-determination caveat, AI Act
+enforcement context), independent output-verification results, and the
+canonical verify-on-an-auditor's-machine command. See
+[`docs/sample-audit-report.pdf`](docs/sample-audit-report.pdf) for a
+rendered example.
+
+`--pdf-report` works without `--manifest-mode` too (audit-only PDF, no
+regulatory section). Rendering is pure-Python via
+[reportlab](https://pypi.org/project/reportlab/) — no LaTeX or external
+binaries required.
 
 ### What the manifest contains
 

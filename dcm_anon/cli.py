@@ -84,6 +84,19 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
         help="Manifest Markdown path (default: <dst>/COMPLIANCE_MANIFEST.md)",
     )
     parser.add_argument(
+        "--pdf-report",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Also emit a professional PDF audit report at PATH (or 'auto' to "
+            "use <dst>/COMPLIANCE_REPORT.pdf). Requires the [pdf] extra: "
+            "pip install 'dcm-anonymizer[pdf]'. Works with --manifest-mode "
+            "for the regulatory-citation section; without --manifest-mode the "
+            "PDF contains the audit summary only."
+        ),
+    )
+    parser.add_argument(
         "--verify-output",
         action="store_true",
         help=(
@@ -215,6 +228,7 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         args.report_md.parent.mkdir(parents=True, exist_ok=True)
         args.report_md.write_text(render_markdown_report(summary), encoding="utf-8")
 
+    manifest_obj = None
     if args.manifest_mode is not None:
         verification: VerificationResult | None = None
         if args.verify_output:
@@ -242,6 +256,22 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
             json_path,
             md_path,
         )
+
+    if args.pdf_report is not None:
+        pdf_path = (
+            args.dst / "COMPLIANCE_REPORT.pdf"
+            if str(args.pdf_report).lower() == "auto"
+            else args.pdf_report
+        )
+        try:
+            from dcm_anon.pdf_report import render_pdf
+
+            written = render_pdf(summary, manifest_obj, pdf_path)
+            LOG.info("pdf report emitted path=%s manifest_mode=%s",
+                     written, args.manifest_mode or "none")
+        except ImportError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
     LOG.info(
         "processed=%d failed=%d burned_in_warnings=%d uid_remaps=%d dry_run=%s audit=%s",
