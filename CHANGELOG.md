@@ -6,6 +6,10 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 
 ## [Unreleased]
 
+---
+
+## [0.5.0] - 2026-05-27
+
 ### Fixed
 - **`--no-strict-ocr` CLI flag now wired.** The README documented it but the
   flag was never added to argparse; `scan_outputs(..., strict_ocr=True)` was
