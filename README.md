@@ -11,6 +11,8 @@ DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps eve
 
 `dcm-anon` is the only OSS DICOM anonymizer that emits a verbatim-cited, hash-chained compliance manifest verifiable by an independent post-run scan. Built around the gap that CNIL fined 800K EUR in 2024.
 
+> **Hosted option.** If you need this as a multi-user REST API with persisted SHA-256 audit retention, per-tenant quotas, and a DPA on file for EU hospital procurement, see [**dcm-anon-vault**](https://github.com/Ces107/dcm-anon-vault) — Free 50 files/mo, Pro €99/mo, Enterprise from €1,200/mo ([pricing.md](https://github.com/Ces107/dcm-anon-vault/blob/main/pricing.md), [DPA template](https://github.com/Ces107/dcm-anon-vault/blob/main/legal/dpa-template.md)). Same engine, deployed once on Fly.io or your VPS; deterministic UID re-mapping for longitudinal cohort linkage; payment via Stripe Checkout or SEPA invoice. Email `plusultra.dev@proton.me` for a trial key or an Enterprise quote.
+
 ---
 
 ## Install
