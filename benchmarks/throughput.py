@@ -10,9 +10,10 @@ import tempfile
 import time
 from pathlib import Path
 
-from pydicom import Dataset, FileDataset
+from pydicom import FileDataset
 from pydicom.dataset import FileMetaDataset
 from pydicom.uid import UID, ExplicitVRLittleEndian
+
 from dcm_anon import AnonymizationConfig, anonymize_path
 
 CT_SOP_CLASS = "1.2.840.10008.5.1.4.1.1.2"
@@ -37,8 +38,6 @@ def make_synthetic_dcm(path: Path, payload_kb: int) -> None:
     ds.AccessionNumber = "ACC-1"
     ds.ReferringPhysicianName = "Doe^John"
     ds.AcquisitionDateTime = "20260519120000"
-    ds.is_implicit_VR = False
-    ds.is_little_endian = True
     side = max(1, int((payload_kb * 1024 / 2) ** 0.5))
     ds.PixelData = b"\0\1" * (side * side)
     ds.Rows = side
@@ -49,7 +48,11 @@ def make_synthetic_dcm(path: Path, payload_kb: int) -> None:
     ds.PixelRepresentation = 0
     ds.PhotometricInterpretation = "MONOCHROME2"
     ds.SamplesPerPixel = 1
-    ds.save_as(path, write_like_original=False)
+    # TransferSyntaxUID in file_meta (set above) carries VR/endianness; the
+    # legacy ds.is_implicit_VR / ds.is_little_endian properties were removed
+    # in pydicom 3.0. enforce_file_format=True is the current-API equivalent
+    # of the removed write_like_original=False.
+    ds.save_as(path, enforce_file_format=True)
 
 
 def bench(n_files: int, payload_kb: int, runs: int = 3) -> dict[str, float]:

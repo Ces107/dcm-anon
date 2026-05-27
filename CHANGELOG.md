@@ -6,6 +6,29 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 
 ## [Unreleased]
 
+### Fixed
+- **`--no-strict-ocr` CLI flag now wired.** The README documented it but the
+  flag was never added to argparse; `scan_outputs(..., strict_ocr=True)` was
+  called unconditionally. The flag is now parsed and threaded through, with a
+  regression test. Default stays strict (a missing OCR dependency fails loudly
+  rather than emitting a falsely-green manifest).
+- **`benchmarks/throughput.py` runs on pydicom 3.x.** Replaced the removed
+  `Dataset.is_implicit_VR` / `is_little_endian` properties and the removed
+  `save_as(write_like_original=...)` kwarg with `enforce_file_format=True`.
+  The benchmark now survives a fresh `pip install dcm-anonymizer` against
+  pydicom 3.x.
+- **GH Pages site (`docs/index.html`) corrected.** Dead PyPI footer link
+  (`dcm-anon` → `dcm-anonymizer`) and the hosted-tier pricing reconciled with
+  the canonical README/pricing.md tiers (Free 50/mo, Pro €99/mo, Enterprise
+  from €1,200/mo).
+
+### DOI note
+- Canonical outward DOI is the **concept DOI `10.5281/zenodo.20267651`**
+  (resolves to latest = v0.4.0). The version-specific DOI for v0.4.0 is
+  `20282264`. Historical entries below that reference `20267652` (v0.3.3)
+  are kept for accuracy of history; the live PyPI `[project.urls]` Zenodo
+  link should be republished as the concept DOI on the next packaging release.
+
 ### Added
 - **PDF audit report (`--pdf-report PATH | auto`).** Optional `[pdf]` extra
   (`pip install 'dcm-anonymizer[pdf]'`) adds a professional PDF compliance

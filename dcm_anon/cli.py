@@ -122,6 +122,17 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
             "fall back to metadata-only scanning)"
         ),
     )
+    parser.add_argument(
+        "--no-strict-ocr",
+        action="store_true",
+        help=(
+            "When --verify-output-pixel-ocr is set but pytesseract/tesseract "
+            "is unavailable, fall back to metadata-only scanning instead of "
+            "raising PixelOCRUnavailableError. Off by default: a missing OCR "
+            "dependency fails loudly rather than emitting a falsely-green "
+            "manifest."
+        ),
+    )
 
     # verify-manifest mode
     parser.add_argument(
@@ -236,7 +247,7 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
                 args.dst,
                 sample_size=args.verify_output_sample,
                 pixel_ocr=args.verify_output_pixel_ocr,
-                strict_ocr=True,
+                strict_ocr=not args.no_strict_ocr,
             )
         manifest_obj = build_manifest(
             summary,

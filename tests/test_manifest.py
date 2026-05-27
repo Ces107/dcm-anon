@@ -248,6 +248,30 @@ class TestScanOutputs:
         # pixel_ocr_available may be True if pytesseract IS installed.
         # We do not assert its value — only that we did not crash.
 
+    def test_cli_exposes_no_strict_ocr_flag(self) -> None:
+        """The README documents --no-strict-ocr; the CLI must actually parse it.
+
+        Regression for the publishable-audit blocker where the flag was
+        documented in the README but never wired into argparse, so the
+        documented fallback raised 'unrecognized argument'.
+        """
+        from dcm_anon import __version__
+        from dcm_anon.cli import build_arg_parser
+
+        parser = build_arg_parser(__version__)
+        args = parser.parse_args([
+            "in.dcm", "out",
+            "--manifest-mode", "gdpr",
+            "--verify-output",
+            "--verify-output-pixel-ocr",
+            "--no-strict-ocr",
+        ])
+        assert args.no_strict_ocr is True
+
+        # Absent by default → strict OCR stays on.
+        default_args = parser.parse_args(["in.dcm", "out"])
+        assert default_args.no_strict_ocr is False
+
 
 
 class TestCrossFileUIDLinkage:

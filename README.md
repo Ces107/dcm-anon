@@ -332,7 +332,7 @@ These are documented gaps, not hidden bugs:
 pytest tests/ -v --cov=dcm_anon --cov-report=term-missing
 ```
 
-132 tests, coverage ≥80% gated in CI. Suite covers: per-tag PHI removal,
+140+ tests, coverage ≥80% gated in CI. Suite covers: per-tag PHI removal,
 UID consistency, file-meta SOP UID parity, sequence recursion, deterministic
 remap, multi-frame DICOM, burned-in flag detection, batch directory
 processing, cross-file UID linkage, manifest SHA-chain integrity, manifest
