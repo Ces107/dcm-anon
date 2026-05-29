@@ -1,6 +1,6 @@
 # dcm-anon
 
-DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps every action to its regulatory citation. GDPR Art. 35 / HIPAA Safe Harbor.
+Deny-by-default DICOM de-identifier (PS3.15 Basic Profile + Structured Report scrubbing) that **fails closed** on what it cannot clear and emits a verbatim-cited, hash-chained compliance manifest. GDPR Art. 35 / HIPAA Safe Harbor.
 
 [![CI](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml/badge.svg)](https://github.com/Ces107/dcm-anon/actions/workflows/test.yml)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20267651-3C5280?logo=zenodo&logoColor=white)](https://doi.org/10.5281/zenodo.20267651)
@@ -9,7 +9,7 @@ DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps eve
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![Manifest format](https://img.shields.io/badge/manifest_format-v1.2-blueviolet)](dcm_anon/manifest.py)
 
-`dcm-anon` pairs a standards-compliant PS3.15 anonymizer with what the common OSS tools leave out: a verbatim-cited, hash-chained compliance manifest, verifiable by an independent post-run scan. It is built around the gap that CNIL fined 800,000 EUR in 2024.
+`dcm-anon` is a **deny-by-default** DICOM de-identifier: it removes every private/vendor tag and blanks any unrecognised person-name by default (not just a fixed allowlist), scrubs the Structured Report content tree, writes the PS3.15 provenance attributes the standard mandates, and **fails closed** — refusing to certify clean the channels a header tool cannot clear (burned-in pixels, recognisable faces in head CT/MR, encapsulated PDF/CDA). Every run emits a verbatim-cited, hash-chained compliance manifest verifiable by an independent post-run scan. It is built around the gap CNIL fined 800,000 EUR for in 2024 — a false anonymisation claim — so it never claims more than it did.
 
 > **Self-hostable companion.** [**dcm-anon-vault**](https://github.com/Ces107/dcm-anon-vault) wraps the same engine as a multi-user REST API with persisted SHA-256 audit retention and deterministic UID re-mapping for longitudinal cohort linkage. It ships with a Dockerfile, `docker-compose.yml` and `fly.toml`, so you can deploy it yourself on Fly.io or your own VPS today (see [`docs/deploy.md`](https://github.com/Ces107/dcm-anon-vault/blob/main/docs/deploy.md)). A managed hosted tier with a DPA on file for EU hospital procurement is in preparation — register for [early access](https://ces107.github.io/dcm-anon/#early-access).
 
@@ -17,9 +17,9 @@ DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps eve
 
 ## Install
 
-**`pip install dcm-anonymizer`** (Python 3.10+; one runtime dep: `pydicom>=2.4`).
+**`pip install dcm-anonymizer`** (Python 3.10+; one runtime dep: `pydicom>=3.0`).
 
-CLI command: `dcm-anon`. Python API: `from dcm_anon import anonymize_file, ...`. The PyPI distribution name differs because PyPI's similar-name check rejects `dcm-anon` against pre-existing `dcmanon` and `dicom-anon`; a PEP 541 claim for `dcm-anon` is the path to align them and is pending. Source install for contributors: `pip install -e ".[dev]"`.
+CLI command: `dcm-anon` (or `python -m dcm_anon`). Python API: `from dcm_anon import anonymize_file, ...`. The PyPI distribution name differs because PyPI's similar-name check rejects `dcm-anon` against pre-existing `dcmanon` and `dicom-anon`; a PEP 541 claim for `dcm-anon` is the path to align them and is pending. Source install for contributors: `pip install -e ".[dev]"`.
 
 Optional: `pytesseract` (plus the system `tesseract` binary) for pixel-data PHI scanning via `--verify-output-pixel-ocr`. The default is strict: if pytesseract is unavailable the CLI raises `PixelOCRUnavailableError` rather than silently producing a green manifest; pass `--no-strict-ocr` to opt into a metadata-only fallback.
 
@@ -45,7 +45,15 @@ GDPR Art. 35 DPIA and HIPAA Safe Harbor both require documenting what was de-ide
 ## What it does
 
 Implements the **DICOM PS3.15 Basic Application Level Confidentiality
-Profile** (Table E.1-1, 2024 edition; **143 explicit tags covering the mandatory Basic Profile plus retired tags still common in legacy archives and the original-attributes audit trail; curve groups (50xx,xxxx) and overlay groups (60xx,xxxx) handled by range mask, not enumerated**). Five properties:
+Profile** with a **deny-by-default** model: beyond a curated action table for
+known tags, it removes EVERY private (odd-group) element (including private
+creators, recursing into sequences), blanks any unrecognised Person-Name
+(VR PN), scrubs the File Meta AE titles that fingerprint the origin site, and
+masks curve (50xx) / overlay (60xx) groups — so PHI outside the known set does
+not leak by omission. It writes the PS3.15 provenance attributes (Patient
+Identity Removed + De-identification Method Code Sequence) and **fails closed**
+on burned-in pixels, head-CT/MR faces, encapsulated documents, and un-scrubbed
+SR content. Core properties:
 
 1. **UID consistency across files.** Anonymize a CT study directory and the
    Study/Series/SOP UIDs remain coherent. Slices are still a usable study,
@@ -285,7 +293,7 @@ Technical coverage:
 
 | Feature | dcm-anon | pydicom example script | dcm4che `deidentify` | dicom-anon (chop-dbhi) | Kitware/dicom-anonymizer | RSNA CTP | pydicom/deid | DicomCleaner/PixelMed |
 |---|---|---|---|---|---|---|---|---|
-| PS3.15 Table E.1-1 coverage | 143 tags + range masks (curves 50xx + overlays 60xx), 2024 ed. | ~10 tags (example only) | Full (Java, complex) | Partial (varies) | Full | Full, HIPAA-vetted profiles | Varies (recipe-based) | Full (Java) |
+| PS3.15 Table E.1-1 coverage | Deny-by-default: known action table + ALL private removed + PN-VR sweep + range masks | ~10 tags (example only) | Full (Java, complex) | Partial (varies) | Full | Full, HIPAA-vetted profiles | Varies (recipe-based) | Full (Java) |
 | UID consistency across files | Yes | No | Yes | Partial | Yes | Yes | Partial | Yes |
 | `file_meta` UID consistency | Yes | No | Yes | Unknown | Unknown | Yes | Unknown | Unknown |
 | Sequence (SQ) recursion | Yes | No | Yes | No | Yes | Yes | No | Yes |
@@ -315,20 +323,33 @@ Compliance manifest dimension (the differentiating layer):
 
 ## Limitations (what this tool does NOT do)
 
-These are documented gaps, not hidden bugs:
+Stated plainly — on these the tool **fails closed** (refuses to certify clean,
+exit code 3) rather than pretending:
 
-- **Pixel-level OCR redaction.** If `BurnedInAnnotation = YES`, the audit
-  log warns you. Pixel data is NOT modified by default. Pixel OCR is on
-  the hosted roadmap.
-- **Private tag scrubbing.** The standard says remove private attributes
-  (`X`), but identifying which private groups contain PHI requires
-  vendor-specific knowledge. This tool does not claim to handle private
-  tags. See `SECURITY.md`.
-- **DICOM SR / Structured Report content scanning.** Free-text inside SR
-  sequences may contain PHI; the tool does not parse SR semantics.
-- **DICOMDIR update.** Directory records in a DICOMDIR are not updated
-  after UID remapping. Regenerate the DICOMDIR after anonymization.
-- **Big-endian transfer syntaxes.** Rare in practice; not tested.
+- **Burned-in pixel text is not removed.** dcm-anon detects the risk by
+  modality / SOP class (US, secondary capture, screenshots — not the unreliable
+  `BurnedInAnnotation` flag) and refuses to certify such objects clean. It does
+  not yet redact pixels; redact externally, then pass `--allow-burned-in`.
+  Arbitrary text in pixels is not 100% OCR-solvable regardless.
+- **Recognisable faces are not removed.** A head CT/MR/PET reconstructs an
+  identifiable face (Schwarz, NEJM 2019); metadata de-identification is
+  insufficient. dcm-anon flags and fails closed — deface externally
+  (pydeface / mri_reface), then pass `--accept-face-risk`.
+- **Encapsulated PDF/CDA interiors are not cleaned.** The opaque byte stream is
+  not inspected; the object is quarantined unless `--allow-encapsulated`.
+- **SR free-text names are best-effort.** `--scrub-sr` redacts regex/blacklist
+  PHI (or all free text under `--sr-profile conservative`); a bundled NER model
+  is not shipped. Use the conservative profile for IRB submissions.
+- **Output is PSEUDONYMOUS, not anonymous.** With `--salt` the mapping is
+  reversible by the salt-holder (a secret key, HMAC-keyed); without a salt,
+  distinct patients collapse to one pseudonym (cohort separation lost). See
+  `SECURITY.md`.
+- **Dates are removed, not shifted.** A consistent per-patient date-shift option
+  (PS3.15 Retain Longitudinal Modified Dates) is not yet implemented.
+- **Tag table is pinned to a DICOM edition.** Tags introduced in a later edition
+  are caught only by the deny-by-default identifier-VR sweep, not by name.
+- **No DICOMDIR update, no DICOM network (C-STORE/Q-R), no GUI.** Regenerate the
+  DICOMDIR after remapping; CLI + library + hosted demo only.
 
 ---
 
@@ -338,11 +359,28 @@ These are documented gaps, not hidden bugs:
 pytest tests/ -v --cov=dcm_anon --cov-report=term-missing
 ```
 
-140+ tests, coverage ≥80% gated in CI. Suite covers: per-tag PHI removal,
-UID consistency, file-meta SOP UID parity, sequence recursion, deterministic
-remap, multi-frame DICOM, burned-in flag detection, batch directory
-processing, cross-file UID linkage, manifest SHA-chain integrity, manifest
-tamper detection, independent verification correctness.
+197 tests, coverage ≥80% gated in CI. Suite covers: deny-by-default private +
+unknown-PN removal (adversarial leak fixtures), file-meta AE scrub, multi-valued
+UID remap, PS3.15 provenance attributes, fail-closed safety gates (burned-in /
+face / encapsulated / SR), SR content-tree scrubbing, false-green verification
+paths (vacuous pass, dependency failure, dry-run), HMAC UID + per-patient
+pseudonyms, manifest SHA-chain integrity and tamper detection, and the public
+completeness proof.
+
+## Completeness proof (run it yourself)
+
+```bash
+python examples/verify_golden.py
+```
+
+Builds a synthetic study with PHI planted in every channel (standard tags,
+GE/Siemens private blocks, nested-sequence PHI, identifiers the legacy table
+missed, an SR free-text content tree), anonymises it, then asserts eight
+independent checks — zero residuals, no surviving private tags, planted
+SSN/email/MRN gone, PatientName pseudonymised, provenance written, Clean
+Structured Content stamped. Exit 0 = PASS. The same proof runs in CI
+(`tests/test_golden_proof.py`) so it can never silently regress. No real
+patient data — reproduce it before trusting the tool.
 
 ---
 

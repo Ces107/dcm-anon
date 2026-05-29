@@ -4,7 +4,7 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 
 ---
 
-## [0.6.0] - unreleased
+## [0.6.0] - 2026-05-29
 
 Major release. Inverts the de-identification model to deny-by-default, writes
 the PS3.15 provenance attributes the standard mandates, fails CLOSED on the
