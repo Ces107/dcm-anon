@@ -35,6 +35,8 @@ class AuditRecord:
     burned_in_phi_warning: bool
     dry_run: bool
     timestamp_utc: str = field(default_factory=utc_now_iso)
+    unresolved_risks: list[str] = field(default_factory=list)
+    sr_touches: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -51,6 +53,7 @@ class AuditSummary:
     records: list[AuditRecord]
     errors: list[ProcessingError]
     audit_sha256: str
+    unresolved_risks: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -60,6 +63,7 @@ class AuditSummary:
             "burned_in_warnings": self.burned_in_warnings,
             "uid_remapping_count": self.uid_remapping_count,
             "dry_run": self.dry_run,
+            "unresolved_risks": sorted(set(self.unresolved_risks)),
             "records": [r.as_dict() for r in self.records],
             "errors": [e.as_dict() for e in self.errors],
             "audit_sha256": self.audit_sha256,

@@ -5,6 +5,8 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from pydicom.multival import MultiValue
+
 if TYPE_CHECKING:  # pragma: no cover
     from pydicom.dataset import Dataset
 
@@ -31,20 +33,43 @@ def _strip(ds: Dataset, tag: tuple[int, int], _: UIDMapper) -> None:
         del ds[tag]
 
 
-def _replace(ds: Dataset, tag: tuple[int, int], _: UIDMapper) -> None:
+def _pseudonym_value(tag: tuple[int, int], token: str) -> str:
+    """VR-appropriate per-patient pseudonym for an identity tag."""
+    if tag == (0x0010, 0x0010):  # Patient's Name (PN)
+        return f"ANON^{token}"
+    return f"DEID-{token}"  # Patient ID and other identifier strings
+
+
+def _replace(ds: Dataset, tag: tuple[int, int], mapper: UIDMapper) -> None:
     if tag not in ds:
         return
-    from dcm_anon.phi_table import PLACEHOLDERS
+    from dcm_anon.phi_table import PLACEHOLDERS, PSEUDONYMIZE_TAGS
 
+    if tag in PSEUDONYMIZE_TAGS:
+        token = mapper.pseudonym(str(ds[tag].value))
+        if token is not None:
+            # Stable per-patient pseudonym (salt set): distinct patients stay
+            # distinct instead of collapsing to a single shared constant.
+            ds[tag].value = _pseudonym_value(tag, token)
+            return
     ds[tag].value = PLACEHOLDERS.get(tag, "")
 
 
 def _remap(ds: Dataset, tag: tuple[int, int], mapper: UIDMapper) -> None:
     if tag not in ds:
         return
-    original = str(ds[tag].value)
+    element = ds[tag]
+    value = element.value
+    if isinstance(value, (MultiValue, list, tuple)):
+        # Multi-valued UID element (e.g. ReferencedSOPInstanceUID in RT-STRUCT /
+        # KOS / presentation states). Remap each member independently — str() over
+        # the whole MultiValue would collapse N UIDs into ONE bracketed-repr hash,
+        # silently severing every cross-reference the dataset depends on (CF-08).
+        element.value = [mapper.remap(str(v)) for v in value if str(v)]
+        return
+    original = str(value)
     if original:
-        ds[tag].value = mapper.remap(original)
+        element.value = mapper.remap(original)
 
 
 ActionRegistry = dict[Action, ActionFn]

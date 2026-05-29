@@ -48,3 +48,20 @@ jobs:
         with:
           name: coverage-report
           path: .coverage
+
+  import-contract:
+    name: "Core import without optional extras"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install core only (no [pdf] / [ocr])
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+      - name: Core modules import with pydicom only
+        run: |
+          python -c "import dcm_anon; import dcm_anon.cli; import dcm_anon.pipeline; import dcm_anon.verify_output; print('core import OK', dcm_anon.__version__)"

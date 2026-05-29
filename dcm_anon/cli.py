@@ -66,6 +66,33 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
                         help="Skip malformed DICOMs instead of aborting")
     parser.add_argument("--keep", action="append", default=[], metavar="GGGG,EEEE",
                         help="Whitelist a tag (hex group,element); repeatable")
+    parser.add_argument("--keep-private", action="store_true",
+                        help="Retain ALL private (odd-group) tags. NOT recommended: "
+                             "PS3.15 mandates their removal and vendors store PHI there. "
+                             "Default removes every private element.")
+    # Fail-closed waivers — the tool refuses to certify clean when it detects a
+    # channel it cannot clear. Each flag is an explicit, logged acknowledgement.
+    parser.add_argument("--allow-burned-in", action="store_true",
+                        help="Waive the burned-in-pixel gate (US/SC/screenshots). "
+                             "Output is NOT certified pixel-clean; you accept the risk.")
+    parser.add_argument("--accept-face-risk", action="store_true",
+                        help="Waive the recognizable-face gate for head CT/MR/PET. "
+                             "Metadata de-id does NOT remove the face; deface externally "
+                             "(pydeface / mri_reface) before sharing if identity matters.")
+    parser.add_argument("--allow-encapsulated", action="store_true",
+                        help="Waive the encapsulated-document gate (PDF/CDA). The embedded "
+                             "byte stream is NOT inspected for PHI.")
+    # Structured Report content-tree scrubbing.
+    parser.add_argument("--scrub-sr", action="store_true",
+                        help="Scrub PHI from the DICOM SR content tree (free text, person "
+                             "names, dates, UID refs inside ContentSequence). Clears the SR "
+                             "fail-closed gate and stamps Clean Structured Content (113104).")
+    parser.add_argument("--sr-profile", choices=["default", "conservative"], default="default",
+                        help="SR scrub profile: 'default' redacts detected PHI spans; "
+                             "'conservative' blanks ALL free text (use for IRB submissions).")
+    parser.add_argument("--allow-sr", action="store_true",
+                        help="Waive the SR gate WITHOUT scrubbing: ship SR free-text as-is "
+                             "(NOT recommended; you accept the residual-PHI risk).")
 
     # audit output
     parser.add_argument("--audit-log", type=Path, default=None,
@@ -121,9 +148,11 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
     parser.add_argument(
         "--verify-output-sample",
         type=int,
-        default=10,
+        default=None,
         metavar="N",
-        help="Max files to include in the independent verification sample (default 10)",
+        help="Limit the independent verification to the first N files. Default is "
+             "to scan EVERY file — a sampled scan is rendered as 'PASSED on sample', "
+             "never as a full-cohort attestation.",
     )
     parser.add_argument(
         "--verify-output-pixel-ocr",
@@ -238,6 +267,13 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         continue_on_error=args.continue_on_error,
         keep_tags=keep_tags,
+        keep_private=args.keep_private,
+        allow_burned_in=args.allow_burned_in,
+        allow_face=args.accept_face_risk,
+        allow_encapsulated=args.allow_encapsulated,
+        allow_sr=args.allow_sr,
+        scrub_sr=args.scrub_sr,
+        sr_profile=args.sr_profile,
         progress_cb=_build_progress_cb(total, quiet=args.quiet),
     )
 
@@ -255,7 +291,12 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
     manifest_obj = None
     if args.manifest_mode is not None:
         verification: VerificationResult | None = None
-        if args.verify_output:
+        if args.verify_output and args.dry_run:
+            LOG.warning(
+                "--verify-output skipped: --dry-run wrote no files, so a scan "
+                "would be vacuous. Verification omitted from the manifest."
+            )
+        elif args.verify_output:
             verification = scan_outputs(
                 args.dst,
                 sample_size=args.verify_output_sample,
@@ -306,6 +347,28 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         summary.dry_run,
         log_path,
     )
+
+    if summary.unresolved_risks:
+        _RISK_GUIDANCE = {
+            "burned_in_pixels": "burned-in pixel PHI present/likely — redact pixels or "
+                                "pass --allow-burned-in to accept the risk",
+            "recognizable_face": "head CT/MR/PET can be re-identified by facial "
+                                 "reconstruction — deface externally (pydeface / "
+                                 "mri_reface) or pass --accept-face-risk",
+            "encapsulated_document": "encapsulated PDF/CDA stream not inspected for PHI "
+                                     "— pass --allow-encapsulated to accept the risk",
+            "structured_report_content": "SR free-text content tree not scrubbed — run "
+                                         "--scrub-sr (or --allow-sr to accept the risk)",
+        }
+        print(
+            "FAIL-CLOSED: output NOT certified de-identified. Unresolved risks "
+            "this de-identifier cannot clear:",
+            file=sys.stderr,
+        )
+        for risk in summary.unresolved_risks:
+            print(f"  - {risk}: {_RISK_GUIDANCE.get(risk, risk)}", file=sys.stderr)
+        return 3
+
     return 0 if summary.files_failed == 0 else 1
 
 
@@ -329,3 +392,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.verify_manifest is not None:
         return _run_verify_mode(args)
     return _run_anonymize_mode(args)
+
+
+if __name__ == "__main__":  # pragma: no cover — exercised via `python -m dcm_anon.cli`
+    raise SystemExit(main())

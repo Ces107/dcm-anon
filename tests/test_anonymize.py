@@ -562,3 +562,60 @@ class TestCLI:
         assert rc == 0
         assert report_path.exists()
         assert "DICOM Anonymization Report" in report_path.read_text()
+
+
+class TestMultiValueUIDRemap:
+    """CF-08 regression: multi-valued UID elements (RT-STRUCT / KOS / presentation
+    state ReferencedSOPInstanceUID) must remap EACH member, not collapse the whole
+    MultiValue into one bracketed-repr hash (which silently severs cross-references).
+    """
+
+    def test_multivalue_uid_each_member_remapped(self) -> None:
+        from pydicom.dataset import Dataset
+
+        from dcm_anon.actions import _remap
+
+        ds = Dataset()
+        ds.add_new(0x00081155, "UI", ["1.2.3.4", "5.6.7.8"])
+        mapper = UIDMapper(salt="cohort-x")
+
+        _remap(ds, (0x0008, 0x1155), mapper)
+
+        out = [str(v) for v in ds[0x00081155].value]
+        assert len(out) == 2, "multi-valued UID was collapsed to a single value"
+        assert out[0] != out[1], "distinct source UIDs must map to distinct UIDs"
+        assert all(v.startswith("2.25.") for v in out)
+        assert "1.2.3.4" not in out and "5.6.7.8" not in out
+
+    def test_multivalue_uid_remap_preserves_referential_integrity(self) -> None:
+        from pydicom.dataset import Dataset
+
+        from dcm_anon.actions import _remap
+
+        mapper = UIDMapper(salt="cohort-x")
+        multi = Dataset()
+        multi.add_new(0x00081155, "UI", ["9.9.9", "8.8.8"])
+        single = Dataset()
+        single.add_new(0x0020000E, "UI", "9.9.9")  # same source UID elsewhere
+
+        _remap(multi, (0x0008, 0x1155), mapper)
+        _remap(single, (0x0020, 0x000E), mapper)
+
+        # The shared source UID 9.9.9 must map identically whether it appears in a
+        # multi-valued or a single-valued element — that is the whole point.
+        assert str(multi[0x00081155].value[0]) == str(single[0x0020000E].value)
+
+    def test_single_value_uid_still_remapped(self) -> None:
+        from pydicom.dataset import Dataset
+
+        from dcm_anon.actions import _remap
+
+        ds = Dataset()
+        ds.add_new(0x0020000D, "UI", "1.2.840.113619.2.55.3.123")
+        mapper = UIDMapper(salt="cohort-x")
+
+        _remap(ds, (0x0020, 0x000D), mapper)
+
+        out = str(ds[0x0020000D].value)
+        assert out.startswith("2.25.")
+        assert out != "1.2.840.113619.2.55.3.123"

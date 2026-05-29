@@ -216,37 +216,89 @@ class TestScanOutputs:
         assert not result.passed
         assert any("PatientName" in r.tag_label for r in result.residuals)
 
-    def test_sample_size_zero_scans_nothing(self, anonymized_dir: tuple[Path, AuditSummary]) -> None:
+    def test_sample_size_zero_is_inconclusive_not_a_pass(
+        self, anonymized_dir: tuple[Path, AuditSummary]
+    ) -> None:
+        """FG-3 fix: scanning zero files is NOT a pass. A vacuous green is the
+        worst failure mode for a compliance artifact."""
         out_dir, _ = anonymized_dir
         result = scan_outputs(out_dir, sample_size=0)
         assert result.files_scanned == 0
-        assert result.passed  # vacuously
+        assert not result.conclusive
+        assert not result.passed
+        assert result.status == "INCONCLUSIVE (0 files scanned)"
+
+    def test_default_scans_every_file(
+        self, anonymized_dir: tuple[Path, AuditSummary]
+    ) -> None:
+        """CF-12: default verification is full-cohort, not a 10-file sample."""
+        out_dir, _ = anonymized_dir
+        result = scan_outputs(out_dir)  # no sample_size -> all
+        assert result.files_total >= 1
+        assert result.files_scanned == result.files_total
+        assert result.coverage_fraction == 1.0
+
+    def test_pixel_scan_failure_raises_in_strict_mode(
+        self, anonymized_dir: tuple[Path, AuditSummary], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FG-1/FG-2: a pixel scan that cannot complete must NOT report clean.
+        With a usable pytesseract probe but a failing per-file scan, strict mode
+        raises rather than emitting a false green."""
+        from dcm_anon import verify_output as vo
+
+        class _FakeTess:
+            @staticmethod
+            def get_tesseract_version() -> str:
+                return "5.0.0"
+
+        def _boom(*_args: object, **_kwargs: object) -> list:
+            raise vo._PixelScanError("simulated numpy/tesseract failure")
+
+        monkeypatch.setattr(vo, "_try_pytesseract", lambda: _FakeTess())
+        monkeypatch.setattr(vo, "_scan_pixels", _boom)
+        out_dir, _ = anonymized_dir
+        with pytest.raises(vo.PixelOCRUnavailableError):
+            scan_outputs(out_dir, pixel_ocr=True, strict_ocr=True)
 
     def test_pixel_ocr_default_off(self, anonymized_dir: tuple[Path, AuditSummary]) -> None:
         out_dir, _ = anonymized_dir
         result = scan_outputs(out_dir, sample_size=1)
         assert not result.pixel_ocr_enabled
 
-    def test_strict_ocr_raises_when_tesseract_missing(
-        self, anonymized_dir: tuple[Path, AuditSummary]
+    def test_strict_ocr_raises_when_pytesseract_unavailable(
+        self,
+        anonymized_dir: tuple[Path, AuditSummary],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Red Team #5 fix: false green from silent OCR degradation is unacceptable."""
+        """Red Team #5 fix: false green from silent OCR degradation is unacceptable.
+
+        Deterministic regardless of whether pytesseract is installed in the
+        runner: force the import probe to report it unavailable so strict mode
+        must raise. (The old test assumed pytesseract was ABSENT and flapped
+        once CI installed the [ocr] extra.)
+        """
+        monkeypatch.setattr(
+            "dcm_anon.verify_output._try_pytesseract", lambda: None
+        )
         out_dir, _ = anonymized_dir
-        # pytesseract is not installed in CI; strict_ocr=True must raise.
         with pytest.raises(PixelOCRUnavailableError):
             scan_outputs(out_dir, sample_size=1, pixel_ocr=True, strict_ocr=True)
 
     def test_strict_ocr_false_degrades_quietly(
-        self, anonymized_dir: tuple[Path, AuditSummary]
+        self,
+        anonymized_dir: tuple[Path, AuditSummary],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.setattr(
+            "dcm_anon.verify_output._try_pytesseract", lambda: None
+        )
         out_dir, _ = anonymized_dir
         result = scan_outputs(
             out_dir, sample_size=1, pixel_ocr=True, strict_ocr=False
         )
-        # No exception; pixel_ocr_available reflects the truth.
+        # No exception; with pytesseract forced-unavailable, degrade quietly.
         assert result.pixel_ocr_enabled
-        # pixel_ocr_available may be True if pytesseract IS installed.
-        # We do not assert its value — only that we did not crash.
+        assert not result.pixel_ocr_available
 
     def test_cli_exposes_no_strict_ocr_flag(self) -> None:
         """The README documents --no-strict-ocr; the CLI must actually parse it.

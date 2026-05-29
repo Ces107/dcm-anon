@@ -4,7 +4,64 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 
 ---
 
-## [Unreleased]
+## [0.6.0] - 2026-05-29
+
+Major release. Inverts the de-identification model to deny-by-default, writes
+the PS3.15 provenance attributes the standard mandates, fails CLOSED on the
+channels a header de-identifier cannot clear, and removes every false-green path
+from the independent verifier. Grounded in a verified review of DICOM PS3.15
+Annex E, the EDPB pseudonymisation guidance, and the CNIL Cegedim decision — the
+guiding principle is honesty over breadth: every assertion must survive an
+auditor opening the first real file.
+
+### Changed (breaking)
+- **De-identification is now deny-by-default, not a fixed tag allowlist.** Every
+  private (odd-group) element — including private-creator reservations and
+  nested private sequences — is removed by default (PS3.15 Basic Profile mandate;
+  vendors store PHI in Siemens CSA / GE / Philips private blocks). Opt back in
+  with `--keep-private` (which then withholds the Basic Profile conformance code).
+- **Independent verification defaults to a full-cohort scan** (was the first 10
+  files). A sampled scan renders as "PASSED on sample (N of M)", never as a
+  full-cohort attestation.
+- **Pinned `pydicom>=3.0`** (the code uses 3.x-only `save_as(enforce_file_format)`).
+
+### Added
+- **PS3.15 provenance attributes** on every output: Patient Identity Removed
+  (0012,0062)=YES, De-identification Method (0012,0063), and Method Code Sequence
+  (0012,0064) carrying ONLY the CID 7050 codes for options actually exercised.
+- **Blanket Person-Name (VR PN) sweep** — any PN element not in the known table
+  is blanked (names are the commonest residual identifier).
+- **File Meta (group 0002) scrub** — Source/Sending/Receiving AE Titles and
+  presentation addresses that fingerprint the origin hospital.
+- **Fail-closed safety gates** for the channels a header tool cannot clear:
+  burned-in pixel PHI (driven off modality/SOP class, not the unreliable
+  BurnedInAnnotation flag), recognizable faces in head CT/MR/PET (Schwarz, NEJM
+  2019), and encapsulated PDF/CDA documents. Unresolved risks return exit code 3,
+  are recorded in the audit JSON, and are disclosed in the manifest. Explicit
+  waivers: `--allow-burned-in`, `--accept-face-risk`, `--allow-encapsulated`.
+- Coverage of identifiers the prior table missed (Responsible Person/Org,
+  Requesting Physician, Reason for Visit, Special Needs, Patient State, Visit
+  Comments, RT ROI names, SOP Authorization DateTime, Timezone Offset, ...).
+- `python -m dcm_anon` entry point; single-source version (`dcm_anon/_version.py`).
+
+### Fixed
+- **Multi-valued UID elements** (e.g. ReferencedSOPInstanceUID in RT-STRUCT / KOS)
+  were collapsed to a single hash, silently severing cross-references. Each member
+  now remaps independently through the shared UID map.
+- **False-green verification paths closed:** a scan of zero files is now
+  INCONCLUSIVE not PASSED; `--verify-output` is skipped under `--dry-run`; strict
+  pixel-OCR probes the tesseract binary and surfaces numpy/decoder failures
+  instead of silently reporting clean.
+- The strict-OCR tests are deterministic (monkeypatch) instead of flapping on
+  whether the `[ocr]` extra happens to be installed; the `[ocr]` extra now pulls
+  `numpy` + `Pillow` (it was dead-on-arrival without them).
+- Version drift across `__init__` / pyproject / CHANGELOG / landing page is now
+  CI-asserted.
+
+### Security
+- Private-attribute leakage (CF-01), SR/encapsulated/burned-in false-green
+  (CF-03/04/05) and the deterministic-UID re-identification surface are addressed
+  or fenced behind fail-closed gates and honest provenance.
 
 ---
 
