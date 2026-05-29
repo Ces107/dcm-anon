@@ -227,26 +227,40 @@ class TestScanOutputs:
         result = scan_outputs(out_dir, sample_size=1)
         assert not result.pixel_ocr_enabled
 
-    def test_strict_ocr_raises_when_tesseract_missing(
-        self, anonymized_dir: tuple[Path, AuditSummary]
+    def test_strict_ocr_raises_when_pytesseract_unavailable(
+        self,
+        anonymized_dir: tuple[Path, AuditSummary],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Red Team #5 fix: false green from silent OCR degradation is unacceptable."""
+        """Red Team #5 fix: false green from silent OCR degradation is unacceptable.
+
+        Deterministic regardless of whether pytesseract is installed in the
+        runner: force the import probe to report it unavailable so strict mode
+        must raise. (The old test assumed pytesseract was ABSENT and flapped
+        once CI installed the [ocr] extra.)
+        """
+        monkeypatch.setattr(
+            "dcm_anon.verify_output._try_pytesseract", lambda: None
+        )
         out_dir, _ = anonymized_dir
-        # pytesseract is not installed in CI; strict_ocr=True must raise.
         with pytest.raises(PixelOCRUnavailableError):
             scan_outputs(out_dir, sample_size=1, pixel_ocr=True, strict_ocr=True)
 
     def test_strict_ocr_false_degrades_quietly(
-        self, anonymized_dir: tuple[Path, AuditSummary]
+        self,
+        anonymized_dir: tuple[Path, AuditSummary],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.setattr(
+            "dcm_anon.verify_output._try_pytesseract", lambda: None
+        )
         out_dir, _ = anonymized_dir
         result = scan_outputs(
             out_dir, sample_size=1, pixel_ocr=True, strict_ocr=False
         )
-        # No exception; pixel_ocr_available reflects the truth.
+        # No exception; with pytesseract forced-unavailable, degrade quietly.
         assert result.pixel_ocr_enabled
-        # pixel_ocr_available may be True if pytesseract IS installed.
-        # We do not assert its value — only that we did not crash.
+        assert not result.pixel_ocr_available
 
     def test_cli_exposes_no_strict_ocr_flag(self) -> None:
         """The README documents --no-strict-ocr; the CLI must actually parse it.

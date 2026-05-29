@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-    "pydicom>=2.4",
+    "pydicom>=3.0",
 ]
 
 [project.urls]
@@ -53,6 +53,8 @@ progress = [
 ]
 ocr = [
     "pytesseract>=0.3",
+    "numpy>=1.24",
+    "Pillow>=10.0",
 ]
 pdf = [
     "reportlab>=4.0",
