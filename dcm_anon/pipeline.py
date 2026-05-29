@@ -242,6 +242,13 @@ def anonymize_file(
     _maintain_file_meta_consistency(ds, original_sop, mapper)
     touched.extend(_scrub_file_meta(ds))
 
+    # Write PS3.15 provenance AFTER scrubbing so it is not itself removed. These
+    # are ADDED attributes (not PHI actions), so they do not enter the per-tag
+    # action log; they are verifiable on the output object and in the manifest.
+    from dcm_anon._version import __version__ as _tool_version
+    from dcm_anon.provenance import write_deid_provenance
+    write_deid_provenance(ds, _tool_version, keep_private=keep_private)
+
     output_path: str | None
     if dry_run:
         output_path = None
