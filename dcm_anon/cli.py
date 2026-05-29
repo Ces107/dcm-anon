@@ -26,6 +26,19 @@ from dcm_anon.verify_output import VerificationResult, scan_outputs
 
 LOG = logging.getLogger("dcmanon")
 
+# Sentinel for ``--pdf-report auto`` (derive default report path under <dst>).
+# Detected from the RAW argument string at parse time, before Path-wrapping, so
+# the check is exact and platform-independent (a real file literally named
+# "auto" still resolves to a Path via _pdf_report_arg).
+PDF_REPORT_AUTO = "auto"
+
+
+def _pdf_report_arg(value: str) -> str | Path:
+    """argparse ``type`` for --pdf-report: keep the 'auto' sentinel, else Path."""
+    if value == PDF_REPORT_AUTO:
+        return PDF_REPORT_AUTO
+    return Path(value)
+
 
 def build_arg_parser(version: str) -> argparse.ArgumentParser:
     """Build the argparse parser. Public so tests can introspect choices."""
@@ -85,7 +98,7 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--pdf-report",
-        type=Path,
+        type=_pdf_report_arg,
         default=None,
         metavar="PATH",
         help=(
@@ -271,7 +284,7 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
     if args.pdf_report is not None:
         pdf_path = (
             args.dst / "COMPLIANCE_REPORT.pdf"
-            if str(args.pdf_report).lower() == "auto"
+            if args.pdf_report == PDF_REPORT_AUTO
             else args.pdf_report
         )
         try:

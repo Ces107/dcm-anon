@@ -55,9 +55,9 @@ _OK = "#2D7A3F"
 
 
 def _truncate_sha(sha: str, head: int = 12, tail: int = 8) -> str:
-    if not sha or len(sha) <= head + tail + 1:
+    if not sha or len(sha) <= head + tail + 3:
         return sha
-    return f"{sha[:head]}…{sha[-tail:]}"
+    return f"{sha[:head]}...{sha[-tail:]}"
 
 
 def _esc(value: object) -> str:
@@ -225,11 +225,23 @@ def render_pdf(
     days_left = manifest.days_to_enforcement if manifest is not None else None
 
     def _kv(label: str, value: str) -> Table:
-        return Table(
+        # Zero the default 6 pt horizontal cell padding so the full colWidth is
+        # usable text budget; otherwise a 64-char manifest_sha256 can straddle
+        # the column boundary on the cover (TD-052).
+        kv = Table(
             [[Paragraph(_esc(label), cover_label)],
              [Paragraph(_esc(value), cover_value)]],
-            colWidths=[8 * cm],
+            colWidths=[8.5 * cm],
         )
+        kv.setStyle(
+            TableStyle([
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ])
+        )
+        return kv
 
     cover_left = [
         _kv("Tool", f"dcm-anon {tool_version}"),
@@ -441,24 +453,25 @@ def render_pdf(
                 block.append(Spacer(1, 2 * mm))
             story.append(KeepTogether(block))
 
-        # Audit-trail clauses
-        story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph("3.1 Audit-trail clauses", h2_style))
-        story.append(Paragraph(
-            "These clauses cover the signed audit log itself, not the per-tag action.",
-            body_left,
-        ))
-        for clause in manifest.audit_trail_clauses:
+        # Audit-trail clauses (only when present, else the heading orphans).
+        if manifest.audit_trail_clauses:
+            story.append(Spacer(1, 4 * mm))
+            story.append(Paragraph("3.1 Audit-trail clauses", h2_style))
             story.append(Paragraph(
-                f"<b>{_esc(clause.citation)}</b> — <i>{_esc(clause.short_title)}</i>",
+                "These clauses cover the signed audit log itself, not the per-tag action.",
                 body_left,
             ))
-            story.append(Paragraph(_esc(clause.summary), body_left))
-            story.append(Paragraph(
-                f"<font face='Courier' size='8.5'>{_esc(clause.url)}</font>",
-                body_left,
-            ))
-            story.append(Spacer(1, 2 * mm))
+            for clause in manifest.audit_trail_clauses:
+                story.append(Paragraph(
+                    f"<b>{_esc(clause.citation)}</b> — <i>{_esc(clause.short_title)}</i>",
+                    body_left,
+                ))
+                story.append(Paragraph(_esc(clause.summary), body_left))
+                story.append(Paragraph(
+                    f"<font face='Courier' size='8.5'>{_esc(clause.url)}</font>",
+                    body_left,
+                ))
+                story.append(Spacer(1, 2 * mm))
 
     # ---------- section: regime-specific disclosures ----------
     if manifest is not None and manifest.regime_disclosures:
