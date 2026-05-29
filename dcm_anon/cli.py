@@ -125,9 +125,11 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
     parser.add_argument(
         "--verify-output-sample",
         type=int,
-        default=10,
+        default=None,
         metavar="N",
-        help="Max files to include in the independent verification sample (default 10)",
+        help="Limit the independent verification to the first N files. Default is "
+             "to scan EVERY file — a sampled scan is rendered as 'PASSED on sample', "
+             "never as a full-cohort attestation.",
     )
     parser.add_argument(
         "--verify-output-pixel-ocr",
@@ -260,7 +262,12 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
     manifest_obj = None
     if args.manifest_mode is not None:
         verification: VerificationResult | None = None
-        if args.verify_output:
+        if args.verify_output and args.dry_run:
+            LOG.warning(
+                "--verify-output skipped: --dry-run wrote no files, so a scan "
+                "would be vacuous. Verification omitted from the manifest."
+            )
+        elif args.verify_output:
             verification = scan_outputs(
                 args.dst,
                 sample_size=args.verify_output_sample,

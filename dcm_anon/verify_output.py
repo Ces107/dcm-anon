@@ -122,23 +122,58 @@ class VerificationResult:
     metadata_tags_checked_per_file: int
     pixel_ocr_enabled: bool
     pixel_ocr_available: bool
+    pixel_ocr_failed: bool = False
     residuals: list[Residual] = field(default_factory=list)
 
     @property
+    def conclusive(self) -> bool:
+        """A verification is conclusive only if it actually inspected files and
+        no enabled layer silently failed. A scan that inspected zero files (the
+        dry-run / vacuous-pass trap) or whose pixel layer errored is NOT a pass.
+        """
+        if self.files_scanned == 0:
+            return False
+        if self.pixel_ocr_enabled and self.pixel_ocr_failed:
+            return False
+        return True
+
+    @property
     def passed(self) -> bool:
-        return not self.residuals
+        return self.conclusive and not self.residuals
+
+    @property
+    def status(self) -> str:
+        if self.residuals:
+            return "FAILED (PHI residuals detected)"
+        if not self.conclusive:
+            if self.files_scanned == 0:
+                return "INCONCLUSIVE (0 files scanned)"
+            return "INCONCLUSIVE (pixel scan degraded)"
+        if self.files_scanned < self.files_total:
+            return f"PASSED on sample ({self.files_scanned} of {self.files_total} files)"
+        return "PASSED (no PHI residuals detected)"
+
+    @property
+    def coverage_fraction(self) -> float:
+        if self.files_total == 0:
+            return 0.0
+        return self.files_scanned / self.files_total
 
     def as_dict(self) -> dict[str, object]:
         return {
             "sample_size": self.sample_size,
             "files_scanned": self.files_scanned,
             "files_total": self.files_total,
+            "coverage_fraction": round(self.coverage_fraction, 4),
             "metadata_tags_checked_per_file": self.metadata_tags_checked_per_file,
             "pixel_ocr_enabled": self.pixel_ocr_enabled,
             "pixel_ocr_available": self.pixel_ocr_available,
+            "pixel_ocr_failed": self.pixel_ocr_failed,
             "residuals_count": len(self.residuals),
             "residuals": [r.as_dict() for r in self.residuals],
+            "conclusive": self.conclusive,
             "passed": self.passed,
+            "status": self.status,
         }
 
 
@@ -217,17 +252,32 @@ def _try_pytesseract() -> Any | None:
         return None
 
 
+class _PixelScanError(RuntimeError):
+    """A pixel-OCR scan was attempted but could not complete (missing numpy,
+    missing tesseract binary, decoder failure). It must NOT be silently treated
+    as 'no residuals' — that is the false-green trap (FG-1/FG-2)."""
+
+
 def _scan_pixels(
     ds: Dataset,
     file_path: Path,
     pytesseract_mod: Any,
 ) -> list[Residual]:
-    """Run pytesseract OCR on the pixel data and flag PHI-shaped strings."""
+    """Run pytesseract OCR on the pixel data and flag PHI-shaped strings.
+
+    Raises :class:`_PixelScanError` on a dependency/decoder failure so the caller
+    can mark the verification degraded rather than emitting a false green.
+    """
     if not hasattr(ds, "pixel_array"):
         return []
     try:
         arr = ds.pixel_array
+    except ImportError as exc:
+        # numpy absent: pydicom cannot build the ndarray. The advertised pixel
+        # scan literally cannot run — surface it, never report clean.
+        raise _PixelScanError(f"pixel_array unavailable: {exc}") from exc
     except Exception:
+        # No decodable pixel data on this object — genuinely nothing to OCR.
         return []
     # pytesseract.image_to_string accepts a 2D ndarray of uint8.
     image = arr
@@ -235,8 +285,9 @@ def _scan_pixels(
         image = image[image.shape[0] // 2]
     try:
         text = str(pytesseract_mod.image_to_string(image))
-    except Exception:
-        return []
+    except Exception as exc:
+        # tesseract binary missing / OCR engine failure: degrade loudly.
+        raise _PixelScanError(f"OCR failed: {exc}") from exc
     findings: list[Residual] = []
     for pattern in _PHI_OCR_PATTERNS:
         for match in pattern.finditer(text):
@@ -264,7 +315,7 @@ class PixelOCRUnavailableError(RuntimeError):
 def scan_outputs(
     output_dir: Path,
     *,
-    sample_size: int = 10,
+    sample_size: int | None = None,
     pixel_ocr: bool = False,
     strict_ocr: bool = True,
 ) -> VerificationResult:
@@ -290,19 +341,31 @@ def scan_outputs(
     """
     files = sorted(output_dir.rglob("*.dcm"))
     files_total = len(files)
-    sample = files[:max(0, sample_size)]
+    # Default = scan EVERY file. Sampling is opt-in (a sampled green must never
+    # read as a full-cohort attestation), and is rendered as such in `status`.
+    sample = files if sample_size is None else files[:max(0, sample_size)]
+
     pytesseract_mod = _try_pytesseract() if pixel_ocr else None
     pixel_available = pytesseract_mod is not None
+    # Probe the tesseract BINARY, not just importability — the common
+    # `pip install pytesseract` without the system binary would otherwise scan
+    # nothing yet report available+clean (FG-1).
+    if pixel_ocr and pytesseract_mod is not None:
+        try:
+            pytesseract_mod.get_tesseract_version()
+        except Exception:
+            pixel_available = False
     if pixel_ocr and not pixel_available and strict_ocr:
         raise PixelOCRUnavailableError(
-            "--verify-output-pixel-ocr was requested but pytesseract is "
-            "not importable. Install with: pip install pytesseract, plus "
-            "the system tesseract binary. Or call scan_outputs(..., "
-            "strict_ocr=False) to fall back to metadata-only scanning."
+            "--verify-output-pixel-ocr was requested but pytesseract/tesseract "
+            "is not usable (module or system binary missing). Install pytesseract "
+            "plus the system tesseract binary, or pass --no-strict-ocr to fall "
+            "back to metadata-only scanning (which does NOT inspect pixels)."
         )
 
     residuals: list[Residual] = []
     files_scanned = 0
+    pixel_failed = False
     for path in sample:
         try:
             ds = dcmread(path)
@@ -310,16 +373,27 @@ def scan_outputs(
             continue
         files_scanned += 1
         residuals.extend(_scan_metadata(ds, path))
-        if pixel_ocr and pytesseract_mod is not None:
-            residuals.extend(_scan_pixels(ds, path, pytesseract_mod))
+        if pixel_ocr and pixel_available:
+            try:
+                residuals.extend(_scan_pixels(ds, path, pytesseract_mod))
+            except _PixelScanError:
+                pixel_failed = True
+
+    if pixel_ocr and pixel_failed and strict_ocr:
+        raise PixelOCRUnavailableError(
+            "pixel OCR scan failed mid-run (missing numpy, missing tesseract "
+            "binary, or a decoder error). Refusing to emit a green pixel "
+            "verification. Fix the dependency or pass --no-strict-ocr."
+        )
 
     return VerificationResult(
-        sample_size=sample_size,
+        sample_size=sample_size if sample_size is not None else files_total,
         files_scanned=files_scanned,
         files_total=files_total,
         metadata_tags_checked_per_file=len(INDEPENDENT_PHI_TAGS),
         pixel_ocr_enabled=pixel_ocr,
         pixel_ocr_available=pixel_available,
+        pixel_ocr_failed=pixel_failed,
         residuals=residuals,
     )
 

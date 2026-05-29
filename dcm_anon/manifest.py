@@ -418,11 +418,11 @@ def render_markdown(manifest: ComplianceManifest) -> str:
         ])
     else:
         verification = manifest.output_verification
-        status = "PASSED (no PHI residuals detected)" if verification.passed else "FAILED"
+        coverage_pct = round(verification.coverage_fraction * 100, 1)
         lines.extend([
-            f"- **Result:** {status}",
-            f"- **Files in sample:** {verification.files_scanned} of "
-            f"{verification.files_total} total",
+            f"- **Result:** {verification.status}",
+            f"- **Files scanned:** {verification.files_scanned} of "
+            f"{verification.files_total} total ({coverage_pct}% coverage)",
             f"- **Tags checked per file (independent list):** "
             f"{verification.metadata_tags_checked_per_file}",
             f"- **Pixel OCR scan:** "
