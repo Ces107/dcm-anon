@@ -33,11 +33,25 @@ def _strip(ds: Dataset, tag: tuple[int, int], _: UIDMapper) -> None:
         del ds[tag]
 
 
-def _replace(ds: Dataset, tag: tuple[int, int], _: UIDMapper) -> None:
+def _pseudonym_value(tag: tuple[int, int], token: str) -> str:
+    """VR-appropriate per-patient pseudonym for an identity tag."""
+    if tag == (0x0010, 0x0010):  # Patient's Name (PN)
+        return f"ANON^{token}"
+    return f"DEID-{token}"  # Patient ID and other identifier strings
+
+
+def _replace(ds: Dataset, tag: tuple[int, int], mapper: UIDMapper) -> None:
     if tag not in ds:
         return
-    from dcm_anon.phi_table import PLACEHOLDERS
+    from dcm_anon.phi_table import PLACEHOLDERS, PSEUDONYMIZE_TAGS
 
+    if tag in PSEUDONYMIZE_TAGS:
+        token = mapper.pseudonym(str(ds[tag].value))
+        if token is not None:
+            # Stable per-patient pseudonym (salt set): distinct patients stay
+            # distinct instead of collapsing to a single shared constant.
+            ds[tag].value = _pseudonym_value(tag, token)
+            return
     ds[tag].value = PLACEHOLDERS.get(tag, "")
 
 

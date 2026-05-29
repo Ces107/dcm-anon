@@ -192,6 +192,17 @@ def _is_uid_remapped(value: str) -> bool:
     return bool(re.fullmatch(r"[0-9.]+", value)) and value.count(".") >= 3
 
 
+_DEID_PSEUDONYM = re.compile(r"(?:ANON\^|DEID-)[0-9A-F]{8,}\Z")
+
+
+def _is_deid_pseudonym(text: str) -> bool:
+    """True for a recognised de-identification pseudonym shape (ANON^<hex> /
+    DEID-<hex>). Like the placeholder set, this lets the verifier accept clearly
+    synthetic de-id markers without flagging them as PHI; the tight hex pattern
+    avoids matching a real value such as 'ANONYMOUS DONOR'."""
+    return bool(_DEID_PSEUDONYM.match(text.upper()))
+
+
 def _value_is_clean(raw_value: object, label: str) -> tuple[bool, str]:
     """Return ``(is_clean, excerpt)``; excerpt is truncated to 64 chars."""
     if raw_value is None:
@@ -200,6 +211,8 @@ def _value_is_clean(raw_value: object, label: str) -> tuple[bool, str]:
     if not text:
         return True, ""
     if text.upper() in _CLEAN_PLACEHOLDERS:
+        return True, ""
+    if _is_deid_pseudonym(text):
         return True, ""
     if "UID" in label and _is_uid_remapped(text):
         return True, ""

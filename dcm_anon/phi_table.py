@@ -211,6 +211,16 @@ PLACEHOLDERS: Final[dict[tuple[int, int], object]] = {
     (0x0020, 0x0010): "0",              # Study ID
 }
 
+# Tags that receive a STABLE PER-PATIENT pseudonym (not a shared constant) when
+# a salt is set, so distinct patients stay distinct in the output while remaining
+# unlinkable to the source without the salt. Without a salt they fall back to the
+# PLACEHOLDERS constants above (which collapse all patients — cohort separation
+# is lost; the CLI/docs warn about this).
+PSEUDONYMIZE_TAGS: Final[frozenset[tuple[int, int]]] = frozenset({
+    (0x0010, 0x0010),  # Patient's Name
+    (0x0010, 0x0020),  # Patient ID
+})
+
 BURNED_IN_TAG: Final[tuple[int, int]] = (0x0028, 0x0301)
 
 # Curve / Overlay group ranges scrubbed wholesale.
