@@ -425,6 +425,9 @@ def render_markdown(manifest: ComplianceManifest) -> str:
             "encapsulated_document": "**Encapsulated document** — the embedded "
             "PDF/CDA byte stream is opaque to attribute scrubbing and was NOT "
             "inspected for PHI.",
+            "structured_report_content": "**SR content tree** — free text, person "
+            "names and dates inside ContentSequence were NOT scrubbed. Re-run with "
+            "--scrub-sr (PS3.15 Clean Structured Content, 113104).",
         }
         lines.extend([
             "",

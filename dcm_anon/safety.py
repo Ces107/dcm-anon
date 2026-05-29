@@ -26,6 +26,9 @@ from pydicom.dataset import Dataset
 RISK_BURNED_IN: Final = "burned_in_pixels"
 RISK_FACE: Final = "recognizable_face"
 RISK_ENCAPSULATED: Final = "encapsulated_document"
+RISK_SR_CONTENT: Final = "structured_report_content"
+
+_SR_CONTENT_SEQUENCE_TAG: Final = 0x0040A730
 
 # Secondary Capture SOP Class family (screenshots / scanned docs / dose reports).
 _SECONDARY_CAPTURE_PREFIX: Final = "1.2.840.10008.5.1.4.1.1.7"
@@ -78,14 +81,22 @@ def has_encapsulated_document(ds: Dataset) -> bool:
     return _sop_class(ds) in _ENCAPSULATED_SOP_CLASSES or _ENCAPSULATED_DOCUMENT_TAG in ds
 
 
+def has_sr_content(ds: Dataset) -> bool:
+    """True if the object carries an SR content tree (ContentSequence 0040,A730)
+    whose free-text/dates a flat tag table cannot reach."""
+    return _SR_CONTENT_SEQUENCE_TAG in ds
+
+
 def detect_unresolved_risks(
     ds: Dataset,
     *,
     pixels_redacted: bool = False,
     face_cleaned: bool = False,
+    sr_scrubbed: bool = False,
     allow_burned_in: bool = False,
     allow_face: bool = False,
     allow_encapsulated: bool = False,
+    allow_sr: bool = False,
 ) -> list[str]:
     """Return the unresolved fail-closed risks for *ds*. Evaluate on the ORIGINAL
     dataset (before scrubbing) so the modality / body-part signals still exist.
@@ -97,4 +108,6 @@ def detect_unresolved_risks(
         risks.append(RISK_FACE)
     if not allow_encapsulated and has_encapsulated_document(ds):
         risks.append(RISK_ENCAPSULATED)
+    if not allow_sr and not sr_scrubbed and has_sr_content(ds):
+        risks.append(RISK_SR_CONTENT)
     return risks

@@ -36,6 +36,7 @@ class AuditRecord:
     dry_run: bool
     timestamp_utc: str = field(default_factory=utc_now_iso)
     unresolved_risks: list[str] = field(default_factory=list)
+    sr_touches: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)

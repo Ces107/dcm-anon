@@ -39,6 +39,9 @@ class AnonymizationConfig:
     allow_burned_in: bool = False
     allow_face: bool = False
     allow_encapsulated: bool = False
+    allow_sr: bool = False
+    scrub_sr: bool = False
+    sr_profile: str = "default"
     progress_cb: ProgressCallback | None = None
     registry: ActionRegistry = field(default_factory=lambda: DEFAULT_REGISTRY)
 
@@ -238,6 +241,9 @@ def anonymize_file(
     allow_burned_in: bool = False,
     allow_face: bool = False,
     allow_encapsulated: bool = False,
+    allow_sr: bool = False,
+    scrub_sr: bool = False,
+    sr_profile: str = "default",
 ) -> AuditRecord:
     """Anonymize a single DICOM file and return its audit record."""
     keep = keep_tags if keep_tags is not None else frozenset()
@@ -246,25 +252,40 @@ def anonymize_file(
 
     # Fail-closed risk detection on the ORIGINAL object (before scrubbing removes
     # the modality/body-part signals). These are channels a header de-identifier
-    # cannot clear (burned-in pixels, face geometry, encapsulated documents).
+    # cannot clear (burned-in pixels, face geometry, encapsulated documents, and
+    # SR free-text unless --scrub-sr runs).
     from dcm_anon.safety import detect_unresolved_risks
     risks = detect_unresolved_risks(
         ds,
+        sr_scrubbed=scrub_sr,
         allow_burned_in=allow_burned_in,
         allow_face=allow_face,
         allow_encapsulated=allow_encapsulated,
+        allow_sr=allow_sr,
     )
 
     touched = _scrub_dataset(ds, mapper, keep, registry, keep_private=keep_private)
     _maintain_file_meta_consistency(ds, original_sop, mapper)
     touched.extend(_scrub_file_meta(ds))
 
+    # SR content-tree pass (free-text / person-names / dates / UIDREFs inside
+    # ContentSequence) on the SAME dataset + SAME UID map. Opt-in via --scrub-sr;
+    # its actions use a distinct vocabulary so they ride a separate audit field,
+    # not the X/Z/U/D per-tag log.
+    sr_touched: list[str] = []
+    from dcm_anon.sr import has_sr_content, scrub_sr_content
+    if scrub_sr and has_sr_content(ds):
+        from dcm_anon.sr import SrConfig
+        sr_touched = scrub_sr_content(ds, mapper, SrConfig(profile=sr_profile))
+
     # Write PS3.15 provenance AFTER scrubbing so it is not itself removed. These
     # are ADDED attributes (not PHI actions), so they do not enter the per-tag
     # action log; they are verifiable on the output object and in the manifest.
+    # Claim Clean Structured Content (113104) ONLY when the SR pass actually ran.
     from dcm_anon._version import __version__ as _tool_version
-    from dcm_anon.provenance import write_deid_provenance
-    write_deid_provenance(ds, _tool_version, keep_private=keep_private)
+    from dcm_anon.provenance import CLEAN_STRUCTURED_CONTENT, write_deid_provenance
+    sr_codes = [CLEAN_STRUCTURED_CONTENT] if sr_touched else None
+    write_deid_provenance(ds, _tool_version, keep_private=keep_private, extra_codes=sr_codes)
 
     output_path: str | None
     if dry_run:
@@ -283,6 +304,7 @@ def anonymize_file(
         dry_run=dry_run,
         timestamp_utc=utc_now_iso(),
         unresolved_risks=risks,
+        sr_touches=sr_touched,
     )
 
 
@@ -304,6 +326,9 @@ def anonymize_path(
     allow_burned_in: bool = False,
     allow_face: bool = False,
     allow_encapsulated: bool = False,
+    allow_sr: bool = False,
+    scrub_sr: bool = False,
+    sr_profile: str = "default",
     progress_cb: ProgressCallback | None = None,
     config: AnonymizationConfig | None = None,
 ) -> AuditSummary:
@@ -321,6 +346,9 @@ def anonymize_path(
         allow_burned_in=allow_burned_in,
         allow_face=allow_face,
         allow_encapsulated=allow_encapsulated,
+        allow_sr=allow_sr,
+        scrub_sr=scrub_sr,
+        sr_profile=sr_profile,
         progress_cb=progress_cb,
     )
 
@@ -342,6 +370,9 @@ def anonymize_path(
                 allow_burned_in=cfg.allow_burned_in,
                 allow_face=cfg.allow_face,
                 allow_encapsulated=cfg.allow_encapsulated,
+                allow_sr=cfg.allow_sr,
+                scrub_sr=cfg.scrub_sr,
+                sr_profile=cfg.sr_profile,
             ))
         except Exception as exc:
             err = ProcessingError(

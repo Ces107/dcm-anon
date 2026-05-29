@@ -82,6 +82,17 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
     parser.add_argument("--allow-encapsulated", action="store_true",
                         help="Waive the encapsulated-document gate (PDF/CDA). The embedded "
                              "byte stream is NOT inspected for PHI.")
+    # Structured Report content-tree scrubbing.
+    parser.add_argument("--scrub-sr", action="store_true",
+                        help="Scrub PHI from the DICOM SR content tree (free text, person "
+                             "names, dates, UID refs inside ContentSequence). Clears the SR "
+                             "fail-closed gate and stamps Clean Structured Content (113104).")
+    parser.add_argument("--sr-profile", choices=["default", "conservative"], default="default",
+                        help="SR scrub profile: 'default' redacts detected PHI spans; "
+                             "'conservative' blanks ALL free text (use for IRB submissions).")
+    parser.add_argument("--allow-sr", action="store_true",
+                        help="Waive the SR gate WITHOUT scrubbing: ship SR free-text as-is "
+                             "(NOT recommended; you accept the residual-PHI risk).")
 
     # audit output
     parser.add_argument("--audit-log", type=Path, default=None,
@@ -260,6 +271,9 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         allow_burned_in=args.allow_burned_in,
         allow_face=args.accept_face_risk,
         allow_encapsulated=args.allow_encapsulated,
+        allow_sr=args.allow_sr,
+        scrub_sr=args.scrub_sr,
+        sr_profile=args.sr_profile,
         progress_cb=_build_progress_cb(total, quiet=args.quiet),
     )
 
@@ -343,6 +357,8 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
                                  "mri_reface) or pass --accept-face-risk",
             "encapsulated_document": "encapsulated PDF/CDA stream not inspected for PHI "
                                      "— pass --allow-encapsulated to accept the risk",
+            "structured_report_content": "SR free-text content tree not scrubbed — run "
+                                         "--scrub-sr (or --allow-sr to accept the risk)",
         }
         print(
             "FAIL-CLOSED: output NOT certified de-identified. Unresolved risks "
