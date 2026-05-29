@@ -4,7 +4,13 @@ Changelog for dcm-anon. Format follows [Keep a Changelog](https://keepachangelog
 
 ---
 
-## [Unreleased]
+## [0.6.0] - unreleased
+
+Major release. Inverts the de-identification model from a fixed tag allowlist to
+deny-by-default, merges DICOM Structured Report scrubbing into the engine, adds
+real burned-in pixel redaction (fail-closed), writes PS3.15 provenance
+attributes, makes the independent verifier genuinely independent, and ships a
+public completeness-proof bundle. Detailed entries are added per change below.
 
 ---
 

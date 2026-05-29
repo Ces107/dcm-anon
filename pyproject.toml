@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dcm-anonymizer"
-version = "0.5.0"
+dynamic = ["version"]
 description = "DICOM anonymizer (PS3.15 Basic Profile) with regulator-clause-cited compliance manifest and independent output verification"
 readme = "README.md"
 license = {text = "MIT"}
@@ -62,6 +62,9 @@ pdf = [
 
 [project.scripts]
 dcm-anon = "dcm_anon.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "dcm_anon._version.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["dcm_anon*"]

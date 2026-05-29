@@ -329,3 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.verify_manifest is not None:
         return _run_verify_mode(args)
     return _run_anonymize_mode(args)
+
+
+if __name__ == "__main__":  # pragma: no cover — exercised via `python -m dcm_anon.cli`
+    raise SystemExit(main())

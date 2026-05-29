@@ -3,6 +3,7 @@ here to keep the package surface stable. CLI: ``dcm-anon src dst``.
 """
 from __future__ import annotations
 
+from dcm_anon._version import __version__
 from dcm_anon.actions import DEFAULT_REGISTRY, Action, ActionRegistry
 from dcm_anon.audit import (
     AuditRecord,
@@ -29,13 +30,6 @@ from dcm_anon.pipeline import (
 )
 from dcm_anon.uid_mapper import UIDMapper
 from dcm_anon.verify_output import VerificationResult, scan_outputs
-
-try:
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as _pkg_version
-    __version__: str = _pkg_version("dcm-anonymizer")
-except (ImportError, PackageNotFoundError):  # pragma: no cover — source-checkout fallback
-    __version__ = "0.0.0+source"
 
 __all__ = [
     "BURNED_IN_TAG",
