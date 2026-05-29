@@ -158,6 +158,43 @@ PHI_TAGS: Final[dict[tuple[int, int], Action]] = {
     (0x4008, 0x010C): Action.X,   # Interpretation Author (RET)
     (0x4008, 0x0111): Action.X,   # Interpretation Approver Sequence (RET)
     (0x4008, 0x0300): Action.X,   # Impressions (RET)
+    # ---- v0.6.0 completeness sweep: identifiers absent from the prior table -
+    # (named explicitly in the v0.6.0 audit as surviving verbatim). The blanket
+    # PN-VR sweep in pipeline catches person-names generally; these are the
+    # non-PN / free-text / id identifiers that the sweep does not reach.
+    (0x0008, 0x0201): Action.X,   # Timezone Offset From UTC
+    (0x0010, 0x0021): Action.X,   # Issuer of Patient ID
+    (0x0010, 0x2297): Action.X,   # Responsible Person (PN)
+    (0x0010, 0x2298): Action.X,   # Responsible Person Role
+    (0x0010, 0x2299): Action.X,   # Responsible Organization
+    (0x0032, 0x1032): Action.X,   # Requesting Physician (PN)
+    (0x0032, 0x1033): Action.X,   # Requesting Service
+    (0x0032, 0x1060): Action.X,   # Requested Procedure Description (free text)
+    (0x0032, 0x1066): Action.X,   # Reason for Visit
+    (0x0032, 0x1070): Action.X,   # Requested Contrast Agent
+    (0x0032, 0x4000): Action.X,   # Study Comments (RET)
+    (0x0038, 0x0050): Action.X,   # Special Needs
+    (0x0038, 0x0060): Action.X,   # Service Episode ID
+    (0x0038, 0x0062): Action.X,   # Service Episode Description
+    (0x0038, 0x0400): Action.X,   # Patient's Institution Residence
+    (0x0038, 0x0500): Action.X,   # Patient State
+    (0x0038, 0x4000): Action.X,   # Visit Comments
+    (0x0040, 0x1010): Action.X,   # Names of Intended Recipients of Results (PN)
+    (0x0040, 0x1400): Action.X,   # Requested Procedure Comments
+    (0x0040, 0x2010): Action.X,   # Order Callback Phone Number
+    (0x0040, 0x2011): Action.X,   # Order Callback Telecom Information
+    (0x0040, 0xA073): Action.X,   # Verifying Observer Sequence (SR)
+    (0x0040, 0xA075): Action.X,   # Verifying Observer Name (SR, PN)
+    (0x0040, 0xA078): Action.X,   # Author Observer Sequence (SR)
+    (0x0040, 0xA088): Action.X,   # Verifying Observer Identification Code Sequence
+    (0x0100, 0x0420): Action.X,   # SOP Authorization DateTime
+    (0x3006, 0x0026): Action.X,   # ROI Name (RT)
+    (0x3006, 0x0028): Action.X,   # ROI Description (RT)
+    (0x3006, 0x0085): Action.X,   # ROI Observation Label (RT)
+    (0x300E, 0x0008): Action.X,   # Reviewer Name (RT, PN)
+    (0x4008, 0x0114): Action.X,   # Physician Approving Interpretation (RET, PN)
+    (0x4008, 0x0118): Action.X,   # Distribution Name (RET, PN)
+    (0x4008, 0x0119): Action.X,   # Distribution Address (RET)
 }
 
 # Tags whose Z-action requires a non-empty placeholder per their VR.

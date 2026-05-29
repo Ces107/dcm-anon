@@ -35,6 +35,7 @@ class AnonymizationConfig:
     dry_run: bool = False
     continue_on_error: bool = False
     keep_tags: TagSet = field(default_factory=frozenset)
+    keep_private: bool = False
     progress_cb: ProgressCallback | None = None
     registry: ActionRegistry = field(default_factory=lambda: DEFAULT_REGISTRY)
 
@@ -91,18 +92,63 @@ def _scrub_curve_overlay_ranges(ds: Dataset, keep: TagSet) -> list[str]:
     return touched
 
 
+def _strip_private_elements(ds: Dataset, keep: TagSet) -> list[str]:
+    """Remove every private (odd-group) data element, including private-creator
+    reservation elements. PS3.15 Basic Profile mandates action X on all private
+    attributes — vendors (Siemens CSA 0029, GE 0009/0019, Philips 2001/2005)
+    routinely store patient name / accession / raw acquisition data there.
+    Retention is the opt-in exception (--keep-private), never the default.
+    Operates at one dataset level; nested private SQs are reached via recursion.
+    """
+    touched: list[str] = []
+    for elem in list(ds):
+        tag = elem.tag
+        if not tag.is_private:
+            continue
+        pair = (tag.group, tag.element)
+        if pair in keep:
+            continue
+        del ds[tag]
+        touched.append(_format_touch(pair, "X(private)"))
+    return touched
+
+
+def _scrub_unknown_person_names(ds: Dataset, keep: TagSet) -> list[str]:
+    """Blank any Person Name (VR 'PN') element not already handled by the known
+    tag table. A PN value is essentially always a person and therefore PHI
+    (HIPAA identifier A); a deny-by-default sweep over the VR catches names the
+    enumerated table does not list — the commonest residual identifier.
+    """
+    touched: list[str] = []
+    for elem in ds:
+        if elem.VR != "PN":
+            continue
+        pair = (elem.tag.group, elem.tag.element)
+        if pair in keep or pair in PHI_TAGS:
+            continue
+        if elem.value in (None, ""):
+            continue
+        elem.value = ""
+        touched.append(_format_touch(pair, "Z(PN-sweep)"))
+    return touched
+
+
 def _recurse_into_sequences(
     ds: Dataset,
     keep: TagSet,
     mapper: UIDMapper,
     registry: ActionRegistry,
+    *,
+    keep_private: bool = False,
 ) -> list[str]:
     touched: list[str] = []
     for elem in ds:
         if elem.VR != "SQ" or not elem.value:
             continue
         for item in elem.value:
-            touched.extend(_scrub_dataset(item, mapper, keep, registry))
+            touched.extend(
+                _scrub_dataset(item, mapper, keep, registry, keep_private=keep_private)
+            )
     return touched
 
 
@@ -111,16 +157,54 @@ def _scrub_dataset(
     mapper: UIDMapper,
     keep_tags: TagSet,
     registry: ActionRegistry = DEFAULT_REGISTRY,
+    *,
+    keep_private: bool = False,
 ) -> list[str]:
-    """Apply PHI_TAGS actions to *ds* and recurse into nested Sequence items."""
+    """Apply known PHI_TAGS actions, sweep private + unknown person-names, and
+    recurse into nested Sequence items. Deny-by-default: anything private or any
+    PN VR is removed/blanked unless explicitly kept."""
     touched = _apply_point_actions(ds, keep_tags, mapper, registry)
     touched.extend(_scrub_curve_overlay_ranges(ds, keep_tags))
-    touched.extend(_recurse_into_sequences(ds, keep_tags, mapper, registry))
+    if not keep_private:
+        touched.extend(_strip_private_elements(ds, keep_tags))
+    touched.extend(_scrub_unknown_person_names(ds, keep_tags))
+    touched.extend(
+        _recurse_into_sequences(ds, keep_tags, mapper, registry, keep_private=keep_private)
+    )
     return touched
 
 
 def _format_touch(tag: tuple[int, int], action: str) -> str:
     return f"{tag[0]:04X},{tag[1]:04X}:{action}"
+
+
+_FILE_META_PHI: frozenset[int] = frozenset({
+    0x00020016,  # Source Application Entity Title
+    0x00020017,  # Sending Application Entity Title
+    0x00020018,  # Receiving Application Entity Title
+    0x00020026,  # Source Presentation Address
+    0x00020027,  # Sending Presentation Address
+    0x00020028,  # Receiving Presentation Address
+    0x00020100,  # Private Information Creator UID
+    0x00020102,  # Private Information
+})
+
+
+def _scrub_file_meta(ds: Dataset) -> list[str]:
+    """Scrub identifying File Meta (group 0002) elements — the AE Titles and
+    presentation addresses encode the origin hospital/department and fingerprint
+    the source site (a HIPAA geographic identifier). Media Storage SOP Instance
+    UID is handled separately (kept consistent with the remapped SOPInstanceUID).
+    """
+    fm = getattr(ds, "file_meta", None)
+    if fm is None:
+        return []
+    touched: list[str] = []
+    for tag_int in _FILE_META_PHI:
+        if tag_int in fm:
+            del fm[tag_int]
+            touched.append(_format_touch((tag_int >> 16, tag_int & 0xFFFF), "X(file_meta)"))
+    return touched
 
 
 def _maintain_file_meta_consistency(
@@ -147,14 +231,16 @@ def anonymize_file(
     dry_run: bool = False,
     keep_tags: TagSet | None = None,
     registry: ActionRegistry = DEFAULT_REGISTRY,
+    keep_private: bool = False,
 ) -> AuditRecord:
     """Anonymize a single DICOM file and return its audit record."""
     keep = keep_tags if keep_tags is not None else frozenset()
     ds = dcmread(src)
     original_sop = str(ds.SOPInstanceUID) if hasattr(ds, "SOPInstanceUID") else None
 
-    touched = _scrub_dataset(ds, mapper, keep, registry)
+    touched = _scrub_dataset(ds, mapper, keep, registry, keep_private=keep_private)
     _maintain_file_meta_consistency(ds, original_sop, mapper)
+    touched.extend(_scrub_file_meta(ds))
 
     output_path: str | None
     if dry_run:
@@ -189,6 +275,7 @@ def anonymize_path(
     dry_run: bool = False,
     continue_on_error: bool = False,
     keep_tags: TagSet | None = None,
+    keep_private: bool = False,
     progress_cb: ProgressCallback | None = None,
     config: AnonymizationConfig | None = None,
 ) -> AuditSummary:
@@ -202,6 +289,7 @@ def anonymize_path(
         dry_run=dry_run,
         continue_on_error=continue_on_error,
         keep_tags=keep_tags or frozenset(),
+        keep_private=keep_private,
         progress_cb=progress_cb,
     )
 
@@ -219,6 +307,7 @@ def anonymize_path(
                 dry_run=cfg.dry_run,
                 keep_tags=cfg.keep_tags,
                 registry=cfg.registry,
+                keep_private=cfg.keep_private,
             ))
         except Exception as exc:
             err = ProcessingError(

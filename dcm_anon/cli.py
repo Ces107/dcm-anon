@@ -66,6 +66,10 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
                         help="Skip malformed DICOMs instead of aborting")
     parser.add_argument("--keep", action="append", default=[], metavar="GGGG,EEEE",
                         help="Whitelist a tag (hex group,element); repeatable")
+    parser.add_argument("--keep-private", action="store_true",
+                        help="Retain ALL private (odd-group) tags. NOT recommended: "
+                             "PS3.15 mandates their removal and vendors store PHI there. "
+                             "Default removes every private element.")
 
     # audit output
     parser.add_argument("--audit-log", type=Path, default=None,
@@ -238,6 +242,7 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         continue_on_error=args.continue_on_error,
         keep_tags=keep_tags,
+        keep_private=args.keep_private,
         progress_cb=_build_progress_cb(total, quiet=args.quiet),
     )
 
