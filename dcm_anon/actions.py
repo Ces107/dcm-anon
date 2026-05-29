@@ -5,6 +5,8 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from pydicom.multival import MultiValue
+
 if TYPE_CHECKING:  # pragma: no cover
     from pydicom.dataset import Dataset
 
@@ -42,9 +44,18 @@ def _replace(ds: Dataset, tag: tuple[int, int], _: UIDMapper) -> None:
 def _remap(ds: Dataset, tag: tuple[int, int], mapper: UIDMapper) -> None:
     if tag not in ds:
         return
-    original = str(ds[tag].value)
+    element = ds[tag]
+    value = element.value
+    if isinstance(value, (MultiValue, list, tuple)):
+        # Multi-valued UID element (e.g. ReferencedSOPInstanceUID in RT-STRUCT /
+        # KOS / presentation states). Remap each member independently — str() over
+        # the whole MultiValue would collapse N UIDs into ONE bracketed-repr hash,
+        # silently severing every cross-reference the dataset depends on (CF-08).
+        element.value = [mapper.remap(str(v)) for v in value if str(v)]
+        return
+    original = str(value)
     if original:
-        ds[tag].value = mapper.remap(original)
+        element.value = mapper.remap(original)
 
 
 ActionRegistry = dict[Action, ActionFn]
