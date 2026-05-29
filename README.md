@@ -9,9 +9,9 @@ DICOM anonymizer (PS3.15 Basic Profile) with a compliance manifest that maps eve
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![Manifest format](https://img.shields.io/badge/manifest_format-v1.2-blueviolet)](dcm_anon/manifest.py)
 
-`dcm-anon` is the only OSS DICOM anonymizer that emits a verbatim-cited, hash-chained compliance manifest verifiable by an independent post-run scan. Built around the gap that CNIL fined 800K EUR in 2024.
+`dcm-anon` pairs a standards-compliant PS3.15 anonymizer with what the common OSS tools leave out: a verbatim-cited, hash-chained compliance manifest, verifiable by an independent post-run scan. It is built around the gap that CNIL fined 800,000 EUR in 2024.
 
-> **Hosted option.** If you need this as a multi-user REST API with persisted SHA-256 audit retention, per-tenant quotas, and a DPA on file for EU hospital procurement, see [**dcm-anon-vault**](https://github.com/Ces107/dcm-anon-vault) — Free 50 files/mo, Pro €99/mo, Enterprise from €1,200/mo ([pricing.md](https://github.com/Ces107/dcm-anon-vault/blob/main/pricing.md), [DPA template](https://github.com/Ces107/dcm-anon-vault/blob/main/legal/dpa-template.md)). Same engine, deployed once on Fly.io or your VPS; deterministic UID re-mapping for longitudinal cohort linkage; payment via Stripe Checkout or SEPA invoice. Email `plusultra.dev@proton.me` for a trial key or an Enterprise quote.
+> **Self-hostable companion.** [**dcm-anon-vault**](https://github.com/Ces107/dcm-anon-vault) wraps the same engine as a multi-user REST API with persisted SHA-256 audit retention and deterministic UID re-mapping for longitudinal cohort linkage. It ships with a Dockerfile, `docker-compose.yml` and `fly.toml`, so you can deploy it yourself on Fly.io or your own VPS today (see [`docs/deploy.md`](https://github.com/Ces107/dcm-anon-vault/blob/main/docs/deploy.md)). A managed hosted tier with a DPA on file for EU hospital procurement is in preparation — register for [early access](https://ces107.github.io/dcm-anon/#early-access).
 
 ---
 
@@ -304,6 +304,12 @@ Compliance manifest dimension (the differentiating layer):
 | Independent output verification | Yes | No | No | No | No | No | No | No |
 | Art. 9(2) / Safe Harbor disclosure in output | Yes | No | No | No | No | No | No | No |
 | Burned-in PHI detection | Flag + optional OCR | No | Flag only | No | No | Flag | No | No |
+
+> Compiled from each tool's public documentation and source as of May 2026.
+> "Unknown" means the capability is not asserted in the tool's public docs, not
+> that it is absent. The compliance-manifest row is the differentiating layer;
+> on raw de-identification coverage the mature tools (RSNA CTP, dcm4che,
+> pydicom/deid) are strong and battle-tested. Corrections welcome via issue or PR.
 
 ---
 
