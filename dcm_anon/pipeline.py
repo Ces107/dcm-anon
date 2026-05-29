@@ -36,6 +36,9 @@ class AnonymizationConfig:
     continue_on_error: bool = False
     keep_tags: TagSet = field(default_factory=frozenset)
     keep_private: bool = False
+    allow_burned_in: bool = False
+    allow_face: bool = False
+    allow_encapsulated: bool = False
     progress_cb: ProgressCallback | None = None
     registry: ActionRegistry = field(default_factory=lambda: DEFAULT_REGISTRY)
 
@@ -232,11 +235,25 @@ def anonymize_file(
     keep_tags: TagSet | None = None,
     registry: ActionRegistry = DEFAULT_REGISTRY,
     keep_private: bool = False,
+    allow_burned_in: bool = False,
+    allow_face: bool = False,
+    allow_encapsulated: bool = False,
 ) -> AuditRecord:
     """Anonymize a single DICOM file and return its audit record."""
     keep = keep_tags if keep_tags is not None else frozenset()
     ds = dcmread(src)
     original_sop = str(ds.SOPInstanceUID) if hasattr(ds, "SOPInstanceUID") else None
+
+    # Fail-closed risk detection on the ORIGINAL object (before scrubbing removes
+    # the modality/body-part signals). These are channels a header de-identifier
+    # cannot clear (burned-in pixels, face geometry, encapsulated documents).
+    from dcm_anon.safety import detect_unresolved_risks
+    risks = detect_unresolved_risks(
+        ds,
+        allow_burned_in=allow_burned_in,
+        allow_face=allow_face,
+        allow_encapsulated=allow_encapsulated,
+    )
 
     touched = _scrub_dataset(ds, mapper, keep, registry, keep_private=keep_private)
     _maintain_file_meta_consistency(ds, original_sop, mapper)
@@ -265,6 +282,7 @@ def anonymize_file(
         burned_in_phi_warning=_has_burned_in_phi(ds),
         dry_run=dry_run,
         timestamp_utc=utc_now_iso(),
+        unresolved_risks=risks,
     )
 
 
@@ -283,6 +301,9 @@ def anonymize_path(
     continue_on_error: bool = False,
     keep_tags: TagSet | None = None,
     keep_private: bool = False,
+    allow_burned_in: bool = False,
+    allow_face: bool = False,
+    allow_encapsulated: bool = False,
     progress_cb: ProgressCallback | None = None,
     config: AnonymizationConfig | None = None,
 ) -> AuditSummary:
@@ -297,6 +318,9 @@ def anonymize_path(
         continue_on_error=continue_on_error,
         keep_tags=keep_tags or frozenset(),
         keep_private=keep_private,
+        allow_burned_in=allow_burned_in,
+        allow_face=allow_face,
+        allow_encapsulated=allow_encapsulated,
         progress_cb=progress_cb,
     )
 
@@ -315,6 +339,9 @@ def anonymize_path(
                 keep_tags=cfg.keep_tags,
                 registry=cfg.registry,
                 keep_private=cfg.keep_private,
+                allow_burned_in=cfg.allow_burned_in,
+                allow_face=cfg.allow_face,
+                allow_encapsulated=cfg.allow_encapsulated,
             ))
         except Exception as exc:
             err = ProcessingError(
@@ -347,6 +374,7 @@ def anonymize_path(
         records=records,
         errors=errors,
         audit_sha256=audit_sha256(records),
+        unresolved_risks=sorted({risk for r in records for risk in r.unresolved_risks}),
     )
 
 

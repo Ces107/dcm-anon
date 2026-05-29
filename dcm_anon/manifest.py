@@ -93,6 +93,7 @@ class ComplianceManifest:
     audit_trail_clauses: list[RegulatoryClause]
     guidance_references: list[GuidanceReference]
     regime_disclosures: list[tuple[str, str]]
+    unresolved_risks: list[str]
     output_verification: VerificationResult | None
     manifest_sha256: str
 
@@ -120,6 +121,7 @@ class ComplianceManifest:
                 {"label": label, "body": body}
                 for label, body in self.regime_disclosures
             ],
+            "unresolved_risks": self.unresolved_risks,
             "output_verification": (
                 self.output_verification.as_dict()
                 if self.output_verification is not None
@@ -216,6 +218,7 @@ def build_manifest(
         "regime_disclosures": [
             {"label": label, "body": body} for label, body in disclosures
         ],
+        "unresolved_risks": audit.unresolved_risks,
         "output_verification": (
             output_verification.as_dict()
             if output_verification is not None
@@ -244,6 +247,7 @@ def build_manifest(
         audit_trail_clauses=trail,
         guidance_references=guidance,
         regime_disclosures=disclosures,
+        unresolved_risks=audit.unresolved_risks,
         output_verification=output_verification,
         manifest_sha256=manifest_hash,
     )
@@ -300,6 +304,7 @@ def verify_manifest(
         "audit_trail_clauses": m.get("audit_trail_clauses"),
         "guidance_references": m.get("guidance_references"),
         "regime_disclosures": m.get("regime_disclosures"),
+        "unresolved_risks": m.get("unresolved_risks"),
         "output_verification": m.get("output_verification"),
     }
     recomputed = _hash_payload(payload_for_hash)
@@ -408,6 +413,29 @@ def render_markdown(manifest: ComplianceManifest) -> str:
                 f"  > {ref.relevance}",
                 f"  [Source]({ref.url})",
             ])
+
+    if manifest.unresolved_risks:
+        _RISK_TEXT = {
+            "burned_in_pixels": "**Burned-in pixel PHI** — name/DOB/MRN may be "
+            "rendered into the image. This metadata de-identifier does NOT modify "
+            "pixels; redact (OCR-guided blackout) before release.",
+            "recognizable_face": "**Recognizable face** — a head CT/MR/PET "
+            "reconstructs an identifiable face (Schwarz, NEJM 2019). Metadata "
+            "de-identification does NOT remove it; deface (pydeface / mri_reface).",
+            "encapsulated_document": "**Encapsulated document** — the embedded "
+            "PDF/CDA byte stream is opaque to attribute scrubbing and was NOT "
+            "inspected for PHI.",
+        }
+        lines.extend([
+            "",
+            "## Unresolved de-identification risks (FAIL-CLOSED)",
+            "",
+            "This object carries channel(s) a header de-identifier cannot clear. "
+            "The output is **NOT certified de-identified** for these; apply the "
+            "named external step before sharing:",
+            "",
+        ])
+        lines.extend(f"- {_RISK_TEXT.get(r, r)}" for r in manifest.unresolved_risks)
 
     lines.extend(["", "## Independent output verification", ""])
     if manifest.output_verification is None:

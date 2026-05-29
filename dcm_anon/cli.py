@@ -70,6 +70,18 @@ def build_arg_parser(version: str) -> argparse.ArgumentParser:
                         help="Retain ALL private (odd-group) tags. NOT recommended: "
                              "PS3.15 mandates their removal and vendors store PHI there. "
                              "Default removes every private element.")
+    # Fail-closed waivers — the tool refuses to certify clean when it detects a
+    # channel it cannot clear. Each flag is an explicit, logged acknowledgement.
+    parser.add_argument("--allow-burned-in", action="store_true",
+                        help="Waive the burned-in-pixel gate (US/SC/screenshots). "
+                             "Output is NOT certified pixel-clean; you accept the risk.")
+    parser.add_argument("--accept-face-risk", action="store_true",
+                        help="Waive the recognizable-face gate for head CT/MR/PET. "
+                             "Metadata de-id does NOT remove the face; deface externally "
+                             "(pydeface / mri_reface) before sharing if identity matters.")
+    parser.add_argument("--allow-encapsulated", action="store_true",
+                        help="Waive the encapsulated-document gate (PDF/CDA). The embedded "
+                             "byte stream is NOT inspected for PHI.")
 
     # audit output
     parser.add_argument("--audit-log", type=Path, default=None,
@@ -245,6 +257,9 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         continue_on_error=args.continue_on_error,
         keep_tags=keep_tags,
         keep_private=args.keep_private,
+        allow_burned_in=args.allow_burned_in,
+        allow_face=args.accept_face_risk,
+        allow_encapsulated=args.allow_encapsulated,
         progress_cb=_build_progress_cb(total, quiet=args.quiet),
     )
 
@@ -318,6 +333,26 @@ def _run_anonymize_mode(args: argparse.Namespace) -> int:
         summary.dry_run,
         log_path,
     )
+
+    if summary.unresolved_risks:
+        _RISK_GUIDANCE = {
+            "burned_in_pixels": "burned-in pixel PHI present/likely — redact pixels or "
+                                "pass --allow-burned-in to accept the risk",
+            "recognizable_face": "head CT/MR/PET can be re-identified by facial "
+                                 "reconstruction — deface externally (pydeface / "
+                                 "mri_reface) or pass --accept-face-risk",
+            "encapsulated_document": "encapsulated PDF/CDA stream not inspected for PHI "
+                                     "— pass --allow-encapsulated to accept the risk",
+        }
+        print(
+            "FAIL-CLOSED: output NOT certified de-identified. Unresolved risks "
+            "this de-identifier cannot clear:",
+            file=sys.stderr,
+        )
+        for risk in summary.unresolved_risks:
+            print(f"  - {risk}: {_RISK_GUIDANCE.get(risk, risk)}", file=sys.stderr)
+        return 3
+
     return 0 if summary.files_failed == 0 else 1
 
 
